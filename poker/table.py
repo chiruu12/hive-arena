@@ -490,7 +490,10 @@ async def run_tournament(
                     hand_summary = engine.resolve_showdown()
                     display.showdown(hand_summary)
 
-        display.chip_counts(engine.players, config.starting_chips)
+        display.chip_counts(
+            engine.players, config.starting_chips,
+            suffering_states=suffering_states if enable_suffering else None,
+        )
 
         if enable_suffering and hand_summary is not None:
             for p in engine.players:

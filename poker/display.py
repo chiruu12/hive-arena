@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
@@ -110,17 +112,32 @@ def fold_win(summary: HandSummary) -> None:
         )
 
 
-def chip_counts(players: list[PlayerState], starting: int) -> None:
+def chip_counts(
+    players: list[PlayerState],
+    starting: int,
+    suffering_states: dict[str, Any] | None = None,
+) -> None:
     parts = []
     for p in players:
+        tilt = ""
+        if suffering_states and p.name in suffering_states:
+            s = suffering_states[p.name]
+            load = s.cumulative_load
+            if s.in_crisis:
+                tilt = " [bold red]\U0001f480 CRISIS[/bold red]"
+            elif load >= 0.6:
+                tilt = " [red]\U0001f525 TILT[/red]"
+            elif load >= 0.3:
+                tilt = " [yellow]stressed[/yellow]"
+
         if p.chips <= 0:
             parts.append(f"[dim]{p.name}:OUT[/dim]")
         elif p.chips > starting:
-            parts.append(f"[green]{p.name}:{p.chips}[/green]")
+            parts.append(f"[green]{p.name}:{p.chips}[/green]{tilt}")
         elif p.chips < starting // 3:
-            parts.append(f"[red]{p.name}:{p.chips}[/red]")
+            parts.append(f"[red]{p.name}:{p.chips}[/red]{tilt}")
         else:
-            parts.append(f"{p.name}:{p.chips}")
+            parts.append(f"{p.name}:{p.chips}{tilt}")
     console.print(f"  Chips: {'  '.join(parts)}")
 
 
@@ -175,3 +192,19 @@ def tournament_results(
         )
 
     console.print(table)
+
+
+def tilt_alert(name: str, old_risk: float, new_risk: float) -> None:
+    if new_risk > old_risk + 0.15:
+        console.print(
+            f"    [bold yellow]!! {name}'s risk tolerance spiked: "
+            f"{old_risk:.0%} → {new_risk:.0%}[/bold yellow]"
+        )
+
+
+def journal_entry(name: str, text: str) -> None:
+    console.print(f"    [blue]\U0001f4dd {name}: {text[:80]}[/blue]")
+
+
+def table_talk(name: str, message: str) -> None:
+    console.print(f"    [magenta]\U0001f4ac {name}:[/magenta] \"{message}\"")
