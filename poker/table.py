@@ -15,11 +15,10 @@ if str(_SRC_DIR) not in sys.path:
     sys.path.insert(0, str(_SRC_DIR))
 
 from poker import display
-from poker.cards import Card, describe_hand, evaluate_hand
+from poker.cards import describe_hand, evaluate_hand
 from poker.engine import (
     Action,
     ActionType,
-    HandSummary,
     Phase,
     PlayerState,
     PokerEngine,
@@ -32,6 +31,7 @@ class LLMPlayer:
     name: str
     model_id: str
     provider_kwargs: dict[str, Any] = field(default_factory=dict)
+    persona: Any = None
     agent: Any = None
     total_time: float = 0.0
 
@@ -67,14 +67,17 @@ def _create_agent(player: LLMPlayer) -> Any:
     from hive.runtime.persona import Persona
 
     provider = _create_provider(player.model_id, player.provider_kwargs)
-    persona = Persona(
-        name=player.name,
-        personality=["poker player", "strategic", "reads opponents"],
-        values=["winning", "calculated risk"],
-        fears=["losing all chips"],
-        purpose="Win the poker tournament through smart play",
-        risk_tolerance=0.5,
-    )
+    if player.persona is not None:
+        persona = player.persona
+    else:
+        persona = Persona(
+            name=player.name,
+            personality=["poker player", "strategic", "reads opponents"],
+            values=["winning", "calculated risk"],
+            fears=["losing all chips"],
+            purpose="Win the poker tournament through smart play",
+            risk_tolerance=0.5,
+        )
     return Agent(name=player.name, model=provider, persona=persona)
 
 
@@ -125,12 +128,36 @@ def _opponent_style(p: PlayerState) -> str:
     return "passive"
 
 
+def _persona_context(persona: Any) -> list[str]:
+    """Build behavioral guidance lines from a Persona's live params."""
+    lines = ["", "BEHAVIORAL GUIDANCE:"]
+    if persona.risk_tolerance >= 0.7:
+        lines.append("  You're aggressive. Lean toward raises and all-ins.")
+    elif persona.risk_tolerance <= 0.3:
+        lines.append("  You play tight. Only premium hands.")
+    else:
+        lines.append("  You're balanced. Mix aggression with caution.")
+    if persona.concentration < 0.5:
+        lines.append("  You're feeling scattered. Keep your strategy simple.")
+    if persona.values:
+        lines.append(f"  Values: {', '.join(persona.values[:3])}")
+    if persona.fears:
+        lines.append(f"  Fears: {', '.join(persona.fears[:2])}")
+    if persona.suffering:
+        frag = persona.suffering.prompt_fragment()
+        if frag:
+            lines.append("")
+            lines.append(frag)
+    return lines
+
+
 def _build_prompt(
     player: PlayerState,
     engine: PokerEngine,
     equity: EquityResult | None,
     valid_actions: list[Action],
     positions: dict[str, str],
+    persona: Any = None,
 ) -> str:
     phase_name = {
         Phase.PRE_FLOP: "Pre-Flop",
@@ -206,7 +233,10 @@ def _build_prompt(
             elif ar.action.type == ActionType.ALL_IN:
                 lines.append(f"  {ar.player} ALL-IN ({ar.chips_spent})")
             else:
-                lines.append(f"  {ar.player} {atype}s" if atype != "check" else f"  {ar.player} checks")
+                if atype != "check":
+                    lines.append(f"  {ar.player} {atype}s")
+                else:
+                    lines.append(f"  {ar.player} checks")
 
     lines.append("")
     lines.append("Your options:")
@@ -234,6 +264,9 @@ def _build_prompt(
         action_map.append(Action(ActionType.SHOW_CARDS))
         lines.append(f"  {option_num}. Show your cards (reveal to intimidate, then choose action)")
 
+    if persona is not None:
+        lines.extend(_persona_context(persona))
+
     lines.append("")
     lines.append(f"Respond with ONLY the number (1-{option_num}).")
 
@@ -243,6 +276,7 @@ def _build_prompt(
 async def run_tournament(
     player_configs: list[tuple[str, str, dict[str, Any]]],
     config: TableConfig,
+    personas: dict[str, Any] | None = None,
 ) -> tuple[PokerEngine, dict[str, float]]:
     """Run a full poker tournament. Returns engine state and timing."""
     engine = PokerEngine(
@@ -257,6 +291,8 @@ async def run_tournament(
     models_map: dict[str, str] = {}
     for name, model_id, kwargs in player_configs:
         lp = LLMPlayer(name=name, model_id=model_id, provider_kwargs=kwargs)
+        if personas and name in personas:
+            lp.persona = personas[name]
         lp.agent = _create_agent(lp)
         llm_players[name] = lp
         models_map[name] = model_id
@@ -324,15 +360,16 @@ async def run_tournament(
                         num_simulations=config.equity_simulations,
                     )
 
+                lp = llm_players[current.name]
                 prompt, action_map = _build_prompt(
-                    current, engine, eq, valid, positions
+                    current, engine, eq, valid, positions,
+                    persona=lp.persona,
                 )
 
-                lp = llm_players[current.name]
                 t0 = time.time()
                 try:
                     response = await lp.agent.run_once(prompt)
-                except Exception as e:
+                except Exception:
                     response = "2"
                 elapsed = time.time() - t0
                 lp.total_time += elapsed

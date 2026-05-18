@@ -13,7 +13,6 @@ from poker.engine import (
     HandSummary,
     Phase,
     PlayerState,
-    SidePot,
 )
 
 console = Console()
@@ -37,7 +36,7 @@ def tournament_header(
     starting_chips: int,
     blinds: tuple[int, int],
 ) -> None:
-    lines = [f"[bold]LLM Poker Tournament[/bold]\n"]
+    lines = ["[bold]LLM Poker Tournament[/bold]\n"]
     for name, model in players:
         short = model.split("/")[-1][:20]
         lines.append(f"  {name} ({short})")

@@ -5,7 +5,6 @@ from __future__ import annotations
 import random
 from dataclasses import dataclass, field
 from enum import Enum, auto
-from typing import Any
 
 from poker.cards import Card, HandResult, describe_hand, evaluate_hand, make_deck
 

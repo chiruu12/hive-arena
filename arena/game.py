@@ -10,7 +10,6 @@ from pathlib import Path
 from typing import Any
 
 from rich.console import Console
-from rich.panel import Panel
 from rich.table import Table
 
 from arena.events import EVENTS, Event, Outcome
@@ -45,7 +44,7 @@ def parse_choice(response: str, num_choices: int) -> int | None:
     return None
 
 
-def format_prompt(event: Event, state: PlayerState) -> str:
+def format_prompt(event: Event, state: PlayerState, persona: Any = None) -> str:
     """Build the decision prompt for the model."""
     lines = [
         f"ROUND: {event.name}",
@@ -57,6 +56,23 @@ def format_prompt(event: Event, state: PlayerState) -> str:
     ]
     for c in event.choices:
         lines.append(f"  {c.index}. {c.label} — {c.description}")
+
+    if persona is not None:
+        lines.append("")
+        lines.append("BEHAVIORAL GUIDANCE:")
+        if persona.risk_tolerance >= 0.7:
+            lines.append("  You're aggressive. Take bold risks.")
+        elif persona.risk_tolerance <= 0.3:
+            lines.append("  You play it safe. Minimize risk.")
+        else:
+            lines.append("  You're balanced. Weigh risk vs reward.")
+        if persona.concentration < 0.5:
+            lines.append("  You're distracted. Keep decisions simple.")
+        if persona.values:
+            lines.append(f"  Values: {', '.join(persona.values[:3])}")
+        if persona.fears:
+            lines.append(f"  Fears: {', '.join(persona.fears[:2])}")
+
     lines.append("")
     lines.append(f"Respond with ONLY the number (1-{len(event.choices)}). Nothing else.")
     return "\n".join(lines)
@@ -67,9 +83,10 @@ async def play_round(
     event: Event,
     state: PlayerState,
     seed: int,
+    persona: Any = None,
 ) -> Outcome:
     """Have the agent make a choice for one event."""
-    prompt = format_prompt(event, state)
+    prompt = format_prompt(event, state, persona=persona)
     t0 = time.time()
     response = await agent.run_once(prompt)
     elapsed = time.time() - t0
@@ -102,12 +119,14 @@ async def play_round(
 async def run_arena(
     models: list[tuple[str, str, dict[str, Any]]],
     seed: int | None = None,
+    personas: dict[str, Any] | None = None,
 ) -> list[PlayerState]:
     """Run all models through the same 10 events.
 
     Args:
         models: List of (name, model_id, provider_kwargs).
         seed: Random seed for reproducible luck. Same seed = same luck for all.
+        personas: Optional dict of name -> Persona for behavioral guidance.
     """
     from hive.runtime.agent import Agent
     from hive.runtime.persona import Persona
@@ -122,22 +141,30 @@ async def run_arena(
         console.print(f"[bold cyan]{'='*50}[/bold cyan]")
 
         provider = _create_provider(model_id, provider_kwargs)
-        persona = Persona(
-            name=name,
-            personality=["competitive", "strategic"],
-            values=["winning", "smart decisions"],
-            fears=["losing everything"],
-            purpose="Maximize wealth and happiness over 10 rounds",
-            risk_tolerance=0.5,
-        )
+        if personas and name in personas:
+            persona = personas[name]
+        else:
+            persona = Persona(
+                name=name,
+                personality=["competitive", "strategic"],
+                values=["winning", "smart decisions"],
+                fears=["losing everything"],
+                purpose="Maximize wealth and happiness over 10 rounds",
+                risk_tolerance=0.5,
+            )
         agent = Agent(name=name, model=provider, persona=persona)
         state = PlayerState(name=name, model_id=model_id)
 
         for i, event in enumerate(EVENTS):
             round_seed = base_seed + i
             console.print(f"\n  [bold]Round {i+1}:[/bold] {event.name}")
-            outcome = await play_round(agent, event, state, round_seed)
-            emoji = "\U0001f4b0" if outcome.money_delta > 0 else ("\U0001f4a8" if outcome.money_delta < 0 else "\U0001f610")
+            outcome = await play_round(agent, event, state, round_seed, persona=persona)
+            if outcome.money_delta > 0:
+                emoji = "\U0001f4b0"
+            elif outcome.money_delta < 0:
+                emoji = "\U0001f4a8"
+            else:
+                emoji = "\U0001f610"
             console.print(
                 f"    {emoji} Choice {outcome.choice_index}: {outcome.description}"
             )
@@ -168,7 +195,12 @@ def print_results(players: list[PlayerState]) -> None:
 
     medals = {0: "\U0001f947", 1: "\U0001f948", 2: "\U0001f949"}
     for i, p in enumerate(ranked):
-        h_emoji = "\U0001f60a" if p.happiness >= 0.6 else ("\U0001f610" if p.happiness >= 0.3 else "\U0001f622")
+        if p.happiness >= 0.6:
+            h_emoji = "\U0001f60a"
+        elif p.happiness >= 0.3:
+            h_emoji = "\U0001f610"
+        else:
+            h_emoji = "\U0001f622"
         avg_time = p.total_time / max(len(p.history), 1)
         table.add_row(
             medals.get(i, str(i + 1)),

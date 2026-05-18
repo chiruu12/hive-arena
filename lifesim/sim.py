@@ -12,8 +12,8 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
-from arena.events import EVENTS, Event
-from arena.game import PlayerState, parse_choice, format_prompt
+from arena.events import EVENTS
+from arena.game import PlayerState, format_prompt, parse_choice
 from lifesim.personas import PERSONAS
 
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
