@@ -179,7 +179,6 @@ def main() -> None:
         },
         "players": [],
         "highlights": [],
-        "tagline": "",
     }
 
     for i, p in enumerate(ranked):
@@ -232,11 +231,6 @@ def main() -> None:
         if p.chips <= 0:
             results["highlights"].append(f"💀 {p.name} ({model_short}) eliminated")
 
-    winner = ranked[0]
-    tagline = _generate_tagline(winner, ranked, PLAYERS)
-    console.print(f"\n[bold yellow]  {tagline}[/bold yellow]")
-    results["tagline"] = tagline
-
     for h in results["highlights"]:
         console.print(f"  {h}")
 
@@ -244,51 +238,6 @@ def main() -> None:
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(json.dumps(results, indent=2))
     console.print(f"\n[green]Results saved:[/green] {out_path}")
-
-
-def _generate_tagline(winner, ranked, players_config) -> str:
-    model = next(
-        (p["model"] for p in players_config if p["name"] == winner.name), "?"
-    )
-    model_short = model.split("/")[-1][:20]
-    is_local = model.startswith("lmstudio:")
-
-    cloud_losers = [
-        p.name for p in ranked[1:]
-        if any(
-            pl["name"] == p.name and not pl["model"].startswith("lmstudio:")
-            for pl in players_config
-        )
-    ]
-
-    local_losers = [
-        p.name for p in ranked[1:]
-        if any(
-            pl["name"] == p.name and pl["model"].startswith("lmstudio:")
-            for pl in players_config
-        )
-    ]
-
-    if is_local and cloud_losers:
-        beaten = ", ".join(cloud_losers)
-        return (
-            f"🏆 {winner.name} ({model_short}) — a LOCAL model — "
-            f"just beat {beaten} at poker. No API key needed."
-        )
-
-    if not is_local and local_losers:
-        return (
-            f"🏆 {winner.name} ({model_short}) proves cloud models "
-            f"still dominate the table."
-        )
-
-    if winner.hands_won >= winner.hands_played * 0.5:
-        return (
-            f"🏆 {winner.name} dominated — won {winner.hands_won}/{winner.hands_played} "
-            f"hands. Unstoppable."
-        )
-
-    return f"🏆 {winner.name} ({model_short}) takes the million dollar pot!"
 
 
 if __name__ == "__main__":
