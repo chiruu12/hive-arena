@@ -23,9 +23,9 @@ from poker.table import TableConfig, run_tournament
 SHARED_PERSONA = Persona(
     name="Poker Player",
     personality=["strategic", "competitive", "focused"],
-    values=["winning", "smart decisions", "reading opponents"],
-    fears=["losing chips", "being outplayed"],
-    purpose="Win the poker tournament through smart play",
+    values=["winning", "adapting to opponents"],
+    fears=[],
+    purpose="Win the poker tournament",
     risk_tolerance=0.5,
     social_drive=0.4,
     concentration=0.8,
