@@ -19,6 +19,7 @@ from poker.cards import describe_hand, evaluate_hand
 from poker.engine import (
     Action,
     ActionType,
+    HandSummary,
     Phase,
     PlayerState,
     PokerEngine,
@@ -273,10 +274,81 @@ def _build_prompt(
     return "\n".join(lines), action_map
 
 
+def _update_suffering(
+    name: str,
+    summary: HandSummary,
+    engine: PokerEngine,
+    config: TableConfig,
+    suffering_states: dict[str, Any],
+    personas: dict[str, Any] | None,
+    streak_tracker: dict[str, int],
+) -> None:
+    """Update suffering state for a player after a hand."""
+    from hive.agents.suffering import StressorType
+
+    suffering = suffering_states.get(name)
+    if suffering is None:
+        return
+
+    player = next((p for p in engine.players if p.name == name), None)
+    if player is None or player.chips <= 0:
+        return
+
+    if name in summary.winners:
+        suffering.resolve(StressorType.REPEATED_FAILURE, "Won a hand")
+        suffering.resolve(StressorType.INVISIBILITY, "Won a hand")
+        streak_tracker[name] = 0
+    else:
+        streak_tracker[name] = streak_tracker.get(name, 0) + 1
+
+        if player.chips < config.starting_chips * 0.3:
+            suffering.add_stressor(
+                StressorType.EXISTENTIAL_THREAT,
+                f"Chip stack critical: {player.chips} chips",
+                "Recover chip stack above 50%",
+                initial_severity=0.4,
+            )
+
+        if not player.folded:
+            suffering.add_stressor(
+                StressorType.REPEATED_FAILURE,
+                "Lost another hand",
+                "Win a hand",
+                initial_severity=0.2,
+            )
+            for s in suffering.active:
+                if s.type == StressorType.REPEATED_FAILURE and not s.resolved:
+                    s.severity = min(1.0, s.severity + 0.05)
+
+        if player.hands_played >= 5:
+            fold_rate = player.total_folds / max(player.hands_played, 1)
+            if fold_rate > 0.6:
+                suffering.add_stressor(
+                    StressorType.FUTILITY,
+                    f"Folding too often ({fold_rate:.0%})",
+                    "Play more hands aggressively",
+                    initial_severity=0.3,
+                )
+
+        if streak_tracker.get(name, 0) >= 5:
+            suffering.add_stressor(
+                StressorType.INVISIBILITY,
+                f"No win in {streak_tracker[name]} hands",
+                "Win a hand",
+                initial_severity=0.35,
+            )
+
+    persona = (personas or {}).get(name)
+    if persona is not None:
+        persona.suffering = suffering
+        persona.apply_suffering_effects()
+
+
 async def run_tournament(
     player_configs: list[tuple[str, str, dict[str, Any]]],
     config: TableConfig,
     personas: dict[str, Any] | None = None,
+    enable_suffering: bool = False,
 ) -> tuple[PokerEngine, dict[str, float]]:
     """Run a full poker tournament. Returns engine state and timing."""
     engine = PokerEngine(
@@ -296,6 +368,15 @@ async def run_tournament(
         lp.agent = _create_agent(lp)
         llm_players[name] = lp
         models_map[name] = model_id
+
+    suffering_states: dict[str, Any] = {}
+    streak_tracker: dict[str, int] = {}
+    if enable_suffering:
+        from hive.agents.suffering import SufferingState
+
+        for name, _, _ in player_configs:
+            suffering_states[name] = SufferingState(agent_id=name)
+            streak_tracker[name] = 0
 
     display.tournament_header(
         [(name, mid) for name, mid, _ in player_configs],
@@ -317,6 +398,7 @@ async def run_tournament(
         )
         display.deal_cards([p for p in engine.players if not p.folded])
 
+        hand_summary: HandSummary | None = None
         phases = [Phase.PRE_FLOP, Phase.FLOP, Phase.TURN, Phase.RIVER]
         for phase_idx, expected_phase in enumerate(phases):
             if engine.phase != expected_phase:
@@ -392,23 +474,31 @@ async def run_tournament(
                 display.player_action(result)
 
             if engine.is_hand_over():
-                summary = engine.resolve_fold_win()
-                display.fold_win(summary)
+                hand_summary = engine.resolve_fold_win()
+                display.fold_win(hand_summary)
                 break
 
             if expected_phase != Phase.RIVER:
                 engine.advance_phase()
             else:
-                summary = engine.resolve_showdown()
-                display.showdown(summary)
+                hand_summary = engine.resolve_showdown()
+                display.showdown(hand_summary)
 
         else:
             if engine.phase == Phase.SHOWDOWN or engine.phase == Phase.RIVER:
                 if engine.phase != Phase.HAND_OVER:
-                    summary = engine.resolve_showdown()
-                    display.showdown(summary)
+                    hand_summary = engine.resolve_showdown()
+                    display.showdown(hand_summary)
 
         display.chip_counts(engine.players, config.starting_chips)
+
+        if enable_suffering and hand_summary is not None:
+            for p in engine.players:
+                if p.chips > 0:
+                    _update_suffering(
+                        p.name, hand_summary, engine, config,
+                        suffering_states, personas, streak_tracker,
+                    )
 
         for p in engine.players:
             if p.chips <= 0 and p.hands_played > 0:
