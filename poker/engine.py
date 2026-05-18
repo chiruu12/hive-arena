@@ -97,11 +97,13 @@ class PokerEngine:
         starting_chips: int = 1000,
         small_blind: int = 10,
         big_blind: int = 20,
+        ante: int = 0,
         seed: int | None = None,
     ):
         self._rng = random.Random(seed)
         self._small_blind = small_blind
         self._big_blind = big_blind
+        self._ante = ante
         self._starting_chips = starting_chips
 
         self.players = [PlayerState(name=n, chips=starting_chips) for n in player_names]
@@ -149,6 +151,15 @@ class PokerEngine:
             p.showed_cards = False
             if not p.folded:
                 p.hands_played += 1
+
+        if self._ante > 0:
+            for p in self.players:
+                if not p.folded:
+                    ante_amount = min(self._ante, p.chips)
+                    p.chips -= ante_amount
+                    self.pot += ante_amount
+                    if p.chips == 0:
+                        p.all_in = True
 
         for p in self.players:
             if not p.folded:

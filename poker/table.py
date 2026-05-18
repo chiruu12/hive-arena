@@ -42,6 +42,7 @@ class TableConfig:
     starting_chips: int = 1000
     small_blind: int = 10
     big_blind: int = 20
+    ante: int = 0
     num_hands: int = 20
     seed: int | None = None
     show_equity: bool = True
@@ -242,6 +243,8 @@ def _build_prompt(
     lines.append("Your options:")
     option_num = 0
     action_map: list[Action] = []
+    raise_count = 0
+    raise_labels = ["min-raise", "half-pot raise", "pot-sized raise"]
     for a in valid_actions:
         if a.type == ActionType.SHOW_CARDS:
             continue
@@ -252,11 +255,15 @@ def _build_prompt(
         elif a.type == ActionType.CHECK:
             lines.append(f"  {option_num}. Check")
         elif a.type == ActionType.CALL:
-            lines.append(f"  {option_num}. Call {a.amount}")
+            lines.append(f"  {option_num}. Call {a.amount:,}")
         elif a.type == ActionType.RAISE:
-            lines.append(f"  {option_num}. Raise to {a.amount}")
+            label = raise_labels[raise_count] if raise_count < len(raise_labels) else "raise"
+            raise_count += 1
+            lines.append(f"  {option_num}. Raise to {a.amount:,} ({label})")
         elif a.type == ActionType.ALL_IN:
-            lines.append(f"  {option_num}. All-in ({player.chips + player.bet_this_round})")
+            lines.append(
+                f"  {option_num}. All-in ({player.chips + player.bet_this_round:,})"
+            )
 
     has_show = any(a.type == ActionType.SHOW_CARDS for a in valid_actions)
     if has_show and not player.showed_cards:
@@ -392,6 +399,7 @@ async def run_tournament(
         starting_chips=config.starting_chips,
         small_blind=config.small_blind,
         big_blind=config.big_blind,
+        ante=config.ante,
         seed=config.seed,
     )
 
@@ -473,8 +481,6 @@ async def run_tournament(
             if len(active_non_allin) <= 1:
                 if not engine.is_hand_over():
                     engine.advance_phase()
-                    if engine.community:
-                        display.community_cards(engine.phase, engine.community)
                 continue
 
             max_actions = len(engine.players) * 6

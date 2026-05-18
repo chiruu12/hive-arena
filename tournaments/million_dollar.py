@@ -68,6 +68,7 @@ STARTING_CHIPS = 1_000_000
 NUM_HANDS = 25
 SMALL_BLIND = 5_000
 BIG_BLIND = 10_000
+ANTE = 1_000
 
 
 def main() -> None:
@@ -104,6 +105,7 @@ def main() -> None:
         starting_chips=STARTING_CHIPS,
         small_blind=SMALL_BLIND,
         big_blind=BIG_BLIND,
+        ante=ANTE,
         num_hands=NUM_HANDS,
         seed=None,
         show_equity=True,
