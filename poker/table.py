@@ -344,11 +344,34 @@ def _update_suffering(
         persona.apply_suffering_effects()
 
 
+async def _write_journal(
+    lp: LLMPlayer,
+    event_desc: str,
+    hand_num: int,
+    notepad: Any,
+) -> None:
+    """Prompt agent for a journal entry and write it."""
+    prompt = (
+        f"You just experienced: {event_desc}. Hand #{hand_num}. "
+        "Write ONE sentence about how you feel right now. "
+        "Stay in character. Be raw and honest."
+    )
+    try:
+        entry = await lp.agent.run_once(prompt)
+        entry = entry.strip()[:200]
+        if entry:
+            notepad.write(lp.name, f"[Hand #{hand_num}] {entry}")
+            display.journal_entry(lp.name, entry)
+    except Exception:
+        pass
+
+
 async def run_tournament(
     player_configs: list[tuple[str, str, dict[str, Any]]],
     config: TableConfig,
     personas: dict[str, Any] | None = None,
     enable_suffering: bool = False,
+    notepad: Any | None = None,
 ) -> tuple[PokerEngine, dict[str, float]]:
     """Run a full poker tournament. Returns engine state and timing."""
     engine = PokerEngine(
@@ -502,6 +525,32 @@ async def run_tournament(
                         p.name, hand_summary, engine, config,
                         suffering_states, personas, streak_tracker,
                     )
+
+        if notepad is not None and hand_summary is not None:
+            for p in engine.players:
+                if p.chips <= 0:
+                    continue
+                lp = llm_players[p.name]
+                event_desc = None
+                if p.name in hand_summary.winners:
+                    total_won = sum(
+                        r.winnings for r in hand_summary.results
+                        if r.player_name == p.name
+                    )
+                    if total_won >= config.starting_chips * 0.3:
+                        event_desc = f"Won big: +{total_won} chips"
+                else:
+                    bet = p.bet_this_hand
+                    if bet >= config.starting_chips * 0.2:
+                        event_desc = f"Lost big pot: -{bet} chips"
+                    elif any(
+                        r.player_name == p.name for r in hand_summary.results
+                        if hasattr(r, 'winnings') and r.winnings == 0
+                    ) and p.all_in:
+                        event_desc = f"All-in and lost with {p.chips} remaining"
+
+                if event_desc:
+                    await _write_journal(lp, event_desc, engine.hand_num, notepad)
 
         for p in engine.players:
             if p.chips <= 0 and p.hands_played > 0:
