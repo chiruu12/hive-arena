@@ -157,6 +157,7 @@ class PokerEngine:
                 if not p.folded:
                     ante_amount = min(self._ante, p.chips)
                     p.chips -= ante_amount
+                    p.bet_this_hand += ante_amount
                     self.pot += ante_amount
                     if p.chips == 0:
                         p.all_in = True
@@ -277,7 +278,6 @@ class PokerEngine:
         if all_in_amount not in [a.amount for a in actions if a.type == ActionType.RAISE]:
             actions.append(Action(ActionType.ALL_IN, all_in_amount))
 
-        actions.append(Action(ActionType.SHOW_CARDS))
         return actions
 
     def apply_action(self, player_name: str, action: Action) -> ActionResult:
@@ -454,8 +454,8 @@ class PokerEngine:
             for i, (p, h) in enumerate(pot_winners):
                 winnings = share + (1 if i < remainder else 0)
                 p.chips += winnings
-                p.hands_won += 1
                 if p.name not in winners:
+                    p.hands_won += 1
                     winners.append(p.name)
 
                 existing = next((r for r in results if r.player_name == p.name), None)

@@ -95,12 +95,20 @@ def show_cards_reveal(name: str, cards: list[Card]) -> None:
 
 def showdown(summary: HandSummary) -> None:
     console.print(f"\n  [bold]Showdown![/bold] Community: [{_cards(summary.community)}]")
-    for r in summary.results:
-        marker = " [green bold]WINNER[/green bold]" if r.player_name in summary.winners else ""
+
+    if len(summary.pots) > 1:
+        for i, pot in enumerate(summary.pots):
+            label = "Main pot" if i == 0 else f"Side pot {i}"
+            console.print(f"    [dim]{label}: {pot.amount:,} ({', '.join(pot.eligible)})[/dim]")
+
+    ranked = sorted(summary.results, key=lambda r: (r.hand.rank, r.hand.tiebreaker), reverse=True)
+    for r in ranked:
+        won = r.winnings > 0
+        marker = " [green bold]WINNER[/green bold]" if won else ""
+        winnings = f" [green](+{r.winnings:,})[/green]" if won else ""
         console.print(
             f"    {r.player_name}: [{_cards(r.hole_cards)}] "
-            f"-> [bold]{r.hand_description}[/bold]{marker}"
-            + (f" (+{r.winnings})" if r.winnings > 0 else "")
+            f"-> [bold]{r.hand_description}[/bold]{marker}{winnings}"
         )
 
 

@@ -265,12 +265,6 @@ def _build_prompt(
                 f"  {option_num}. All-in ({player.chips + player.bet_this_round:,})"
             )
 
-    has_show = any(a.type == ActionType.SHOW_CARDS for a in valid_actions)
-    if has_show and not player.showed_cards:
-        option_num += 1
-        action_map.append(Action(ActionType.SHOW_CARDS))
-        lines.append(f"  {option_num}. Show your cards (reveal to intimidate, then choose action)")
-
     if memory_context:
         lines.append("")
         lines.append("Your memories of opponents:")
@@ -467,21 +461,23 @@ async def run_tournament(
         display.deal_cards([p for p in engine.players if not p.folded])
 
         hand_summary: HandSummary | None = None
-        phases = [Phase.PRE_FLOP, Phase.FLOP, Phase.TURN, Phase.RIVER]
-        for phase_idx, expected_phase in enumerate(phases):
-            if engine.phase != expected_phase:
-                break
 
-            if phase_idx > 0:
+        while engine.phase in (Phase.PRE_FLOP, Phase.FLOP, Phase.TURN, Phase.RIVER):
+            if engine.phase != Phase.PRE_FLOP:
                 display.community_cards(engine.phase, engine.community)
 
             active_non_allin = [
                 p for p in engine.players if not p.folded and not p.all_in
             ]
             if len(active_non_allin) <= 1:
+                if engine.phase == Phase.RIVER:
+                    hand_summary = engine.resolve_showdown()
+                    display.showdown(hand_summary)
+                    break
                 if not engine.is_hand_over():
                     engine.advance_phase()
-                continue
+                    continue
+                break
 
             max_actions = len(engine.players) * 6
             action_count = 0
@@ -536,11 +532,6 @@ async def run_tournament(
                         action_map[0],
                     )
 
-                if action.type == ActionType.SHOW_CARDS:
-                    result = engine.apply_action(current.name, action)
-                    display.show_cards_reveal(current.name, current.hole_cards)
-                    continue
-
                 result = engine.apply_action(current.name, action)
                 display.player_action(result)
 
@@ -549,17 +540,12 @@ async def run_tournament(
                 display.fold_win(hand_summary)
                 break
 
-            if expected_phase != Phase.RIVER:
-                engine.advance_phase()
-            else:
+            if engine.phase == Phase.RIVER:
                 hand_summary = engine.resolve_showdown()
                 display.showdown(hand_summary)
+                break
 
-        else:
-            if engine.phase == Phase.SHOWDOWN or engine.phase == Phase.RIVER:
-                if engine.phase != Phase.HAND_OVER:
-                    hand_summary = engine.resolve_showdown()
-                    display.showdown(hand_summary)
+            engine.advance_phase()
 
         display.chip_counts(
             engine.players, config.starting_chips,
