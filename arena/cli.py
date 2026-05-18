@@ -2,10 +2,22 @@
 
 import argparse
 import asyncio
+import sys
 from datetime import UTC, datetime
 from pathlib import Path
 
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+_SRC_DIR = _PROJECT_ROOT / "src"
+if str(_SRC_DIR) not in sys.path:
+    sys.path.insert(0, str(_SRC_DIR))
+
 from arena.game import console, print_results, run_arena, save_results
+
+DRAMATIC_PROFILES = {
+    "Phi": "philosopher",
+    "Liquid": "gambler",
+    "Qwen": "coder",
+}
 
 PRESETS = {
     "local": [
@@ -30,6 +42,7 @@ def main() -> None:
     parser.add_argument("--preset", choices=["local", "cloud"], help="Use preset model list")
     parser.add_argument("--port", type=int, default=1234, help="LM Studio port")
     parser.add_argument("--seed", type=int, default=None, help="Random seed for reproducible luck")
+    parser.add_argument("--dramatic", action="store_true", help="Assign personality profiles")
     parser.add_argument("--output", type=str, default="", help="Save results to JSON file")
     args = parser.parse_args()
 
@@ -53,7 +66,23 @@ def main() -> None:
         f"\n[bold]LLM Arena[/bold] — {len(models)} players, 10 rounds, $500 starting cash\n"
     )
 
-    players = asyncio.run(run_arena(models, seed=args.seed))
+    personas = None
+    if args.dramatic:
+        from hive.agents.profile import AgentProfile
+        from hive.runtime.persona import Persona
+
+        profiles_dir = Path(__file__).resolve().parent.parent.parent / "profiles"
+        personas = {}
+        for name, _, _ in models:
+            profile_name = DRAMATIC_PROFILES.get(name)
+            if profile_name and (profiles_dir / f"{profile_name}.yaml").exists():
+                profile = AgentProfile.from_yaml(profiles_dir / f"{profile_name}.yaml")
+                p = Persona.from_profile(profile)
+                p.name = name
+                personas[name] = p
+                console.print(f"  [dim]{name} → {profile_name} persona[/dim]")
+
+    players = asyncio.run(run_arena(models, seed=args.seed, personas=personas))
     print_results(players)
 
     if args.output:
