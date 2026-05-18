@@ -556,6 +556,13 @@ async def run_tournament(
             engine.players, config.starting_chips,
             suffering_states=suffering_states if enable_suffering else None,
         )
+        display.scoreboard(
+            engine.players, config.starting_chips,
+            hand_num=engine.hand_num, total_hands=config.num_hands,
+            models=models_map,
+            times={name: lp.total_time for name, lp in llm_players.items()},
+            suffering_states=suffering_states if enable_suffering else None,
+        )
 
         if enable_suffering and hand_summary is not None:
             for p in engine.players:

@@ -194,6 +194,80 @@ def tournament_results(
     console.print(table)
 
 
+def scoreboard(
+    players: list[PlayerState],
+    starting: int,
+    hand_num: int,
+    total_hands: int,
+    models: dict[str, str],
+    times: dict[str, float],
+    suffering_states: dict[str, Any] | None = None,
+) -> None:
+    """Print a live scoreboard after each hand."""
+    ranked = sorted(players, key=lambda p: p.chips, reverse=True)
+
+    table = Table(
+        title=f"Scoreboard — Hand {hand_num}/{total_hands}",
+        show_lines=False,
+        border_style="dim",
+        padding=(0, 1),
+    )
+    table.add_column("#", style="bold", width=3)
+    table.add_column("Player", style="cyan", width=12)
+    table.add_column("Chips", justify="right", width=12)
+    table.add_column("P/L", justify="right", width=10)
+    table.add_column("Bar", width=20)
+    table.add_column("W/F/R", justify="center", width=8)
+    table.add_column("Status", width=12)
+
+    max_chips = max((p.chips for p in ranked), default=starting)
+    bar_width = 16
+
+    for i, p in enumerate(ranked):
+        pl = p.chips - starting
+        if p.chips <= 0:
+            pl_str = f"[red]-${starting:,}[/red]"
+            bar = "[dim]" + "░" * bar_width + "[/dim]"
+            status = "[bold red]OUT[/bold red]"
+        else:
+            if pl >= 0:
+                pl_str = f"[green]+${pl:,}[/green]"
+            else:
+                pl_str = f"[red]-${abs(pl):,}[/red]"
+            filled = int((p.chips / max(max_chips, 1)) * bar_width)
+            if p.chips > starting:
+                bar = "[green]" + "█" * filled + "[/green]" + "░" * (bar_width - filled)
+            elif p.chips < starting // 3:
+                bar = "[red]" + "█" * filled + "[/red]" + "░" * (bar_width - filled)
+            else:
+                bar = "█" * filled + "░" * (bar_width - filled)
+
+            status = ""
+            if suffering_states and p.name in suffering_states:
+                s = suffering_states[p.name]
+                load = s.cumulative_load
+                if s.in_crisis:
+                    status = "[bold red]💀 CRISIS[/bold red]"
+                elif load >= 0.6:
+                    status = "[red]🔥 TILT[/red]"
+                elif load >= 0.3:
+                    status = "[yellow]😰[/yellow]"
+
+        wfr = f"{p.hands_won}/{p.total_folds}/{p.total_raises}"
+
+        table.add_row(
+            str(i + 1),
+            p.name,
+            f"${p.chips:,}" if p.chips > 0 else "—",
+            pl_str,
+            bar,
+            wfr,
+            status,
+        )
+
+    console.print(table)
+
+
 def tilt_alert(name: str, old_risk: float, new_risk: float) -> None:
     if new_risk > old_risk + 0.15:
         console.print(
