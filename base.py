@@ -55,15 +55,8 @@ class HiveGame(ABC):
         notepad: Any | None = None,
         a2a_store: Any | None = None,
         memory_dir: Path | None = None,
+        **kwargs: Any,
     ) -> None: ...
 
     @abstractmethod
     async def play(self) -> GameResult: ...
-
-    def integrate_suffering(
-        self,
-        player_name: str,
-        event_type: str,
-        outcome: str,
-    ) -> None:
-        """Hook for suffering integration. Override in subclasses."""

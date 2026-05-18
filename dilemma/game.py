@@ -149,9 +149,9 @@ class PrisonersDilemma(HiveGame):
                     purpose="Maximize score in the dilemma",
                     risk_tolerance=0.5,
                 )
-            from poker.table import _create_provider
+            from providers import create_provider
 
-            provider = _create_provider(model_id, kwargs)
+            provider = create_provider(model_id, kwargs)
             dp.agent = Agent(name=name, model=provider, persona=persona)
             self._players.append(dp)
 

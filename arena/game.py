@@ -249,14 +249,9 @@ def save_results(players: list[PlayerState], path: Path) -> None:
     console.print(f"\n[green]Results saved:[/green] {path}")
 
 
+from providers import create_provider
+
+
 def _create_provider(model_id: str, kwargs: dict[str, Any]) -> Any:
     """Create a Hive provider from model ID."""
-    if model_id.startswith("lmstudio:") or kwargs.get("host"):
-        from hive.models.lmstudio import LMStudio
-
-        clean = model_id.removeprefix("lmstudio:")
-        return LMStudio(model=clean, **kwargs)
-
-    from hive.models.factory import create_runtime_provider
-
-    return create_runtime_provider(model_id)
+    return create_provider(model_id, kwargs)

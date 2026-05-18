@@ -176,9 +176,9 @@ class AuctionGame(HiveGame):
                     purpose="Win valuable items without going broke",
                     risk_tolerance=0.5,
                 )
-            from poker.table import _create_provider
+            from providers import create_provider
 
-            provider = _create_provider(model_id, kwargs)
+            provider = create_provider(model_id, kwargs)
             ap.agent = Agent(name=name, model=provider, persona=persona)
             self._players.append(ap)
 

@@ -52,15 +52,11 @@ POSITION_LABELS_3 = ["Dealer", "SB", "BB"]
 POSITION_LABELS_4P = ["Dealer", "SB", "BB", "UTG", "UTG+1", "CO", "HJ", "LJ"]
 
 
+from providers import create_provider
+
+
 def _create_provider(model_id: str, kwargs: dict[str, Any]) -> Any:
-    if model_id.startswith("lmstudio:") or kwargs.get("host"):
-        from hive.models.lmstudio import LMStudio
-
-        clean = model_id.removeprefix("lmstudio:")
-        return LMStudio(model=clean, **kwargs)
-    from hive.models.factory import create_runtime_provider
-
-    return create_runtime_provider(model_id)
+    return create_provider(model_id, kwargs)
 
 
 def _create_agent(player: LLMPlayer) -> Any:
