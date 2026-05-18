@@ -43,9 +43,9 @@ PLAYERS = [
         "kwargs": {"host": "http://localhost:1234/v1"},
     },
     {
-        "name": "Phi",
-        "model": "lmstudio:microsoft/phi-4-mini-reasoning",
-        "kwargs": {"host": "http://localhost:1234/v1"},
+        "name": "GPT-OSS",
+        "model": "fireworks:accounts/fireworks/models/gpt-oss-120b",
+        "kwargs": {},
     },
     {
         "name": "Haiku",
