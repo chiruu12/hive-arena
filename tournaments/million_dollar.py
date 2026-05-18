@@ -234,8 +234,9 @@ def main() -> None:
     for h in results["highlights"]:
         console.print(f"  {h}")
 
-    out_path = Path(f"results/million-dollar-{ts}.json")
-    out_path.parent.mkdir(parents=True, exist_ok=True)
+    results_dir = Path(__file__).resolve().parent / "results"
+    results_dir.mkdir(parents=True, exist_ok=True)
+    out_path = results_dir / f"million-dollar-{ts}.json"
     out_path.write_text(json.dumps(results, indent=2))
     console.print(f"\n[green]Results saved:[/green] {out_path}")
 
