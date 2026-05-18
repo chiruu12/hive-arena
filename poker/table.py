@@ -159,6 +159,8 @@ def _build_prompt(
     valid_actions: list[Action],
     positions: dict[str, str],
     persona: Any = None,
+    table_talk: list[tuple[str, str]] | None = None,
+    memory_context: list[str] | None = None,
 ) -> str:
     phase_name = {
         Phase.PRE_FLOP: "Pre-Flop",
@@ -264,6 +266,18 @@ def _build_prompt(
         option_num += 1
         action_map.append(Action(ActionType.SHOW_CARDS))
         lines.append(f"  {option_num}. Show your cards (reveal to intimidate, then choose action)")
+
+    if memory_context:
+        lines.append("")
+        lines.append("Your memories of opponents:")
+        for mem in memory_context[:3]:
+            lines.append(f"  - {mem[:100]}")
+
+    if table_talk:
+        lines.append("")
+        lines.append("Recent table talk:")
+        for speaker, msg in table_talk[-3:]:
+            lines.append(f"  {speaker}: \"{msg}\"")
 
     if persona is not None:
         lines.extend(_persona_context(persona))
@@ -372,6 +386,8 @@ async def run_tournament(
     personas: dict[str, Any] | None = None,
     enable_suffering: bool = False,
     notepad: Any | None = None,
+    a2a_store: Any | None = None,
+    memory_dir: Path | None = None,
 ) -> tuple[PokerEngine, dict[str, float]]:
     """Run a full poker tournament. Returns engine state and timing."""
     engine = PokerEngine(
@@ -400,6 +416,30 @@ async def run_tournament(
         for name, _, _ in player_configs:
             suffering_states[name] = SufferingState(agent_id=name)
             streak_tracker[name] = 0
+
+    recent_talk: dict[int, list[tuple[str, str]]] = {}
+
+    opponent_profiles: dict[str, list[str]] = {}
+    memories: dict[str, Any] = {}
+    if memory_dir is not None:
+        from hive.memory.semantic import SemanticMemory
+
+        for name, _, _ in player_configs:
+            memories[name] = SemanticMemory(memory_dir, name)
+
+        for name in memories:
+            for opp_name, _, _ in player_configs:
+                if opp_name != name:
+                    try:
+                        results = await memories[name].search(
+                            f"opponent {opp_name}", top_k=3
+                        )
+                    except Exception:
+                        results = []
+                    if results:
+                        opponent_profiles.setdefault(name, []).extend(
+                            [r.thought for r in results]
+                        )
 
     display.tournament_header(
         [(name, mid) for name, mid, _ in player_configs],
@@ -466,9 +506,12 @@ async def run_tournament(
                     )
 
                 lp = llm_players[current.name]
+                last_talk = list(recent_talk.values())[-1] if recent_talk else None
                 prompt, action_map = _build_prompt(
                     current, engine, eq, valid, positions,
                     persona=lp.persona,
+                    table_talk=last_talk,
+                    memory_context=opponent_profiles.get(current.name),
                 )
 
                 t0 = time.time()
@@ -552,11 +595,65 @@ async def run_tournament(
                 if event_desc:
                     await _write_journal(lp, event_desc, engine.hand_num, notepad)
 
+        if a2a_store is not None and engine.hand_num % 3 == 0:
+            alive = [p for p in engine.players if p.chips > 0]
+            talk_msgs: list[tuple[str, str]] = []
+            for p in alive:
+                lp = llm_players[p.name]
+                talk_prompt = (
+                    f"Break between hands. You have {p.chips} chips. "
+                    "Say one sentence to the table, or 'SILENT'."
+                )
+                try:
+                    resp = await lp.agent.run_once(talk_prompt)
+                    resp = resp.strip()[:150]
+                    if resp.upper() not in ("SILENT", "PASS", "") and resp:
+                        talk_msgs.append((p.name, resp))
+                except Exception:
+                    pass
+
+            for sender, msg_text in talk_msgs:
+                from hive.interactions.a2a import A2AMessage, A2AMessageType
+
+                for target in alive:
+                    if target.name != sender:
+                        a2a_msg = A2AMessage(
+                            type=A2AMessageType.QUERY,
+                            from_agent=sender,
+                            to_agent=target.name,
+                            subject="table_talk",
+                            body=msg_text,
+                        )
+                        await a2a_store.send(a2a_msg)
+                display.table_talk(sender, msg_text)
+            if talk_msgs:
+                recent_talk[engine.hand_num] = talk_msgs
+
         for p in engine.players:
             if p.chips <= 0 and p.hands_played > 0:
                 display.player_eliminated(p.name)
 
         engine.rotate_dealer()
+
+    if memory_dir is not None:
+        for name in memories:
+            for opp in engine.players:
+                if opp.name != name:
+                    style = _opponent_style(opp)
+                    fold_pct = opp.total_folds / max(opp.hands_played, 1)
+                    raise_pct = opp.total_raises / max(opp.hands_played, 1)
+                    thought = (
+                        f"opponent {opp.name}: {style}, "
+                        f"fold_rate={fold_pct:.0%}, "
+                        f"raise_rate={raise_pct:.0%}, "
+                        f"final_chips={opp.chips}"
+                    )
+                    try:
+                        await memories[name].store(
+                            thought, metadata={"type": "opponent_profile"}
+                        )
+                    except Exception:
+                        pass
 
     times = {name: lp.total_time for name, lp in llm_players.items()}
     display.tournament_results(engine.players, config.starting_chips, models_map, times)
