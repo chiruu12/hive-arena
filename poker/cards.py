@@ -146,3 +146,30 @@ def _evaluate_five(cards: list[Card]) -> HandResult:
         return HandResult(HandRank.PAIR, (groups[0][0], *kickers), cards)
 
     return HandResult(HandRank.HIGH_CARD, tuple(ranks), cards)
+
+
+def describe_hand(result: HandResult) -> str:
+    """Human-readable hand description like 'Pair of Aces'."""
+    tb = result.tiebreaker
+    r = result.rank
+    _r = lambda v: RANK_NAMES.get(v, str(v))  # noqa: E731
+
+    if r == HandRank.ROYAL_FLUSH:
+        return "Royal Flush"
+    if r == HandRank.STRAIGHT_FLUSH:
+        return f"Straight Flush, {_r(tb[0])}-high"
+    if r == HandRank.FOUR_OF_A_KIND:
+        return f"Four {_r(tb[0])}s"
+    if r == HandRank.FULL_HOUSE:
+        return f"Full House, {_r(tb[0])}s full of {_r(tb[1])}s"
+    if r == HandRank.FLUSH:
+        return f"Flush, {_r(tb[0])}-high"
+    if r == HandRank.STRAIGHT:
+        return f"Straight, {_r(tb[0])}-high"
+    if r == HandRank.THREE_OF_A_KIND:
+        return f"Three {_r(tb[0])}s"
+    if r == HandRank.TWO_PAIR:
+        return f"Two Pair, {_r(tb[0])}s and {_r(tb[1])}s"
+    if r == HandRank.PAIR:
+        return f"Pair of {_r(tb[0])}s"
+    return f"{_r(tb[0])}-high"
