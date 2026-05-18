@@ -103,9 +103,15 @@ def showdown(summary: HandSummary) -> None:
 
     ranked = sorted(summary.results, key=lambda r: (r.hand.rank, r.hand.tiebreaker), reverse=True)
     for r in ranked:
-        won = r.winnings > 0
-        marker = " [green bold]WINNER[/green bold]" if won else ""
-        winnings = f" [green](+{r.winnings:,})[/green]" if won else ""
+        if r.contested_win:
+            marker = " [green bold]WINNER[/green bold]"
+            winnings = f" [green](+{r.winnings:,})[/green]"
+        elif r.winnings > 0:
+            marker = ""
+            winnings = f" [dim](+{r.winnings:,} refund)[/dim]"
+        else:
+            marker = ""
+            winnings = ""
         console.print(
             f"    {r.player_name}: [{_cards(r.hole_cards)}] "
             f"-> [bold]{r.hand_description}[/bold]{marker}{winnings}"
