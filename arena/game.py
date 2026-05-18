@@ -88,7 +88,11 @@ async def play_round(
     """Have the agent make a choice for one event."""
     prompt = format_prompt(event, state, persona=persona)
     t0 = time.time()
-    response = await agent.run_once(prompt)
+    try:
+        response = await agent.run_once(prompt)
+    except Exception as e:
+        response = "1"
+        console.print(f"    [dim](LLM error: {str(e)[:60]}, defaulting to 1)[/dim]")
     elapsed = time.time() - t0
     state.total_time += elapsed
 
