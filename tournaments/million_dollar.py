@@ -105,7 +105,7 @@ def main() -> None:
         small_blind=SMALL_BLIND,
         big_blind=BIG_BLIND,
         num_hands=NUM_HANDS,
-        seed=42,
+        seed=None,
         show_equity=True,
         equity_simulations=500,
     )
@@ -132,7 +132,7 @@ def main() -> None:
             "starting_chips": STARTING_CHIPS,
             "num_hands": NUM_HANDS,
             "blinds": f"{SMALL_BLIND}/{BIG_BLIND}",
-            "seed": 42,
+            "seed": "random",
             "enable_suffering": True,
             "same_persona": True,
         },
