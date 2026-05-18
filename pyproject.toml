@@ -1,0 +1,25 @@
+[project]
+name = "hive-arena"
+version = "0.1.0"
+description = "Head-to-head LLM arena and life simulation — built on Hive"
+requires-python = ">=3.11"
+dependencies = [
+    "hive-agent>=0.2.0",
+    "rich>=13.0",
+    "pyyaml>=6.0",
+]
+
+[project.scripts]
+arena = "arena.cli:main"
+lifesim = "lifesim.cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W"]
