@@ -167,8 +167,9 @@ def _build_prompt(
 
     lines = [
         f"TEXAS HOLD'EM — {phase_name} — Hand #{engine.hand_num}",
+        f"You are {player.name}. You are playing against other AI models.",
         "",
-        f"Your cards: {' '.join(str(c) for c in player.hole_cards)}",
+        f"Your hole cards: {' '.join(str(c) for c in player.hole_cards)}",
     ]
 
     if engine.community:
@@ -472,6 +473,8 @@ async def run_tournament(
             if len(active_non_allin) <= 1:
                 if not engine.is_hand_over():
                     engine.advance_phase()
+                    if engine.community:
+                        display.community_cards(engine.phase, engine.community)
                 continue
 
             max_actions = len(engine.players) * 6

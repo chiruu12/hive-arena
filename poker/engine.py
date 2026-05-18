@@ -118,6 +118,8 @@ class PokerEngine:
         self._action_order: list[int] = []
         self._action_pos = 0
         self.showed_cards: dict[str, list[Card]] = {}
+        self._raises_this_round = 0
+        self._max_raises_per_round = 4
 
     def new_hand(self) -> None:
         """Shuffle, deal, post blinds, start pre-flop."""
@@ -240,11 +242,20 @@ class PokerEngine:
             call_amount = min(cost_to_call, p.chips)
             actions.append(Action(ActionType.CALL, call_amount))
 
-        if p.chips > cost_to_call:
+        can_raise = (
+            p.chips > cost_to_call
+            and self._raises_this_round < self._max_raises_per_round
+        )
+        if can_raise:
             min_raise_to = self.current_bet + self.min_raise
             min_raise_cost = min_raise_to - p.bet_this_round
             if min_raise_cost <= p.chips:
                 actions.append(Action(ActionType.RAISE, min_raise_to))
+
+                half_pot = self.current_bet + (self.pot + cost_to_call) // 2
+                half_pot_cost = half_pot - p.bet_this_round
+                if half_pot_cost <= p.chips and half_pot > min_raise_to:
+                    actions.append(Action(ActionType.RAISE, half_pot))
 
                 pot_raise_to = self.current_bet + self.pot + cost_to_call
                 pot_raise_cost = pot_raise_to - p.bet_this_round
@@ -297,6 +308,7 @@ class PokerEngine:
             self.pot += cost
             self.current_bet = p.bet_this_round
             self.last_raiser = player_name
+            self._raises_this_round += 1
             for other in self.players:
                 if other.name != player_name and not other.folded and not other.all_in:
                     other.has_acted = False
@@ -390,6 +402,7 @@ class PokerEngine:
         self.current_bet = 0
         self.min_raise = self._big_blind
         self.last_raiser = None
+        self._raises_this_round = 0
         for p in self.players:
             p.bet_this_round = 0
             if not p.folded and not p.all_in:

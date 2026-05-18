@@ -20,103 +20,54 @@ from hive.runtime.persona import Persona
 from poker.display import console
 from poker.table import TableConfig, run_tournament
 
+SHARED_PERSONA = Persona(
+    name="Poker Player",
+    personality=["strategic", "competitive", "focused"],
+    values=["winning", "smart decisions", "reading opponents"],
+    fears=["losing chips", "being outplayed"],
+    purpose="Win the poker tournament through smart play",
+    risk_tolerance=0.5,
+    social_drive=0.4,
+    concentration=0.8,
+)
+
 PLAYERS = [
     {
         "name": "Liquid",
         "model": "lmstudio:liquid/lfm2.5-1.2b",
         "kwargs": {"host": "http://localhost:1234/v1"},
-        "persona": Persona(
-            name="Liquid",
-            personality=["reckless", "fast-thinking", "instinctive"],
-            values=["speed", "momentum", "action"],
-            fears=["overthinking", "missing the moment"],
-            purpose="Play fast and trust your gut",
-            risk_tolerance=0.75,
-            social_drive=0.4,
-            concentration=0.6,
-        ),
     },
     {
         "name": "Qwen",
         "model": "lmstudio:qwen/qwen3-1.7b",
         "kwargs": {"host": "http://localhost:1234/v1"},
-        "persona": Persona(
-            name="Qwen",
-            personality=["analytical", "patient", "calculating"],
-            values=["precision", "logic", "consistency"],
-            fears=["chaos", "unpredictability"],
-            purpose="Win through superior analysis and patience",
-            risk_tolerance=0.35,
-            social_drive=0.3,
-            concentration=0.9,
-        ),
     },
     {
         "name": "Phi",
         "model": "lmstudio:microsoft/phi-4-mini-reasoning",
         "kwargs": {"host": "http://localhost:1234/v1"},
-        "persona": Persona(
-            name="Phi",
-            personality=["methodical", "deep-thinking", "cautious"],
-            values=["thoroughness", "correctness", "safety"],
-            fears=["making mistakes", "being careless"],
-            purpose="Never make a bad call. Quality over speed.",
-            risk_tolerance=0.2,
-            social_drive=0.2,
-            concentration=0.95,
-        ),
     },
     {
         "name": "Haiku",
         "model": "claude-haiku-4-5",
         "kwargs": {},
-        "persona": Persona(
-            name="Haiku",
-            personality=["elegant", "balanced", "adaptive"],
-            values=["efficiency", "grace", "reading opponents"],
-            fears=["being predictable", "wasted effort"],
-            purpose="Read the table, adapt, and strike at the right moment",
-            risk_tolerance=0.5,
-            social_drive=0.6,
-            concentration=0.85,
-        ),
     },
     {
         "name": "MiniMax",
         "model": "fireworks:accounts/fireworks/models/minimax-m2p7",
         "kwargs": {},
-        "persona": Persona(
-            name="MiniMax",
-            personality=["aggressive", "confident", "unpredictable"],
-            values=["dominance", "intimidation", "big pots"],
-            fears=["looking weak", "being pushed around"],
-            purpose="Control the table through aggression and pressure",
-            risk_tolerance=0.8,
-            social_drive=0.7,
-            concentration=0.7,
-        ),
     },
     {
         "name": "Kimi",
         "model": "fireworks:accounts/fireworks/models/kimi-k2p6",
         "kwargs": {},
-        "persona": Persona(
-            name="Kimi",
-            personality=["strategic", "deceptive", "cunning"],
-            values=["outsmarting opponents", "information advantage", "traps"],
-            fears=["being outplayed", "transparency"],
-            purpose="Set traps, mislead, and exploit weaknesses",
-            risk_tolerance=0.6,
-            social_drive=0.5,
-            concentration=0.8,
-        ),
     },
 ]
 
 STARTING_CHIPS = 1_000_000
 NUM_HANDS = 25
-SMALL_BLIND = 10_000
-BIG_BLIND = 20_000
+SMALL_BLIND = 5_000
+BIG_BLIND = 10_000
 
 
 def main() -> None:
@@ -125,22 +76,29 @@ def main() -> None:
     console.print("[bold red]  6 LLMs • $1,000,000 chips • 25 hands[/bold red]")
     console.print("[bold red]" + "=" * 60 + "[/bold red]\n")
 
-    console.print("[bold]Players:[/bold]")
+    console.print("[bold]Players (same persona, model is the only variable):[/bold]")
     for p in PLAYERS:
-        persona = p["persona"]
         model_short = p["model"].split("/")[-1][:25]
         local = "LOCAL" if p["model"].startswith("lmstudio:") else "CLOUD"
-        console.print(
-            f"  [cyan]{p['name']:12s}[/cyan] [{local}] ({model_short}) — "
-            f"{', '.join(persona.personality[:2])}, "
-            f"risk={persona.risk_tolerance:.0%}"
-        )
+        console.print(f"  [cyan]{p['name']:12s}[/cyan] [{local}] ({model_short})")
     console.print()
 
     player_configs = [
         (p["name"], p["model"], p["kwargs"]) for p in PLAYERS
     ]
-    personas = {p["name"]: p["persona"] for p in PLAYERS}
+    personas = {}
+    for p in PLAYERS:
+        persona = Persona(
+            name=p["name"],
+            personality=SHARED_PERSONA.personality.copy(),
+            values=SHARED_PERSONA.values.copy(),
+            fears=SHARED_PERSONA.fears.copy(),
+            purpose=SHARED_PERSONA.purpose,
+            risk_tolerance=SHARED_PERSONA.risk_tolerance,
+            social_drive=SHARED_PERSONA.social_drive,
+            concentration=SHARED_PERSONA.concentration,
+        )
+        personas[p["name"]] = persona
 
     config = TableConfig(
         starting_chips=STARTING_CHIPS,
@@ -176,6 +134,7 @@ def main() -> None:
             "blinds": f"{SMALL_BLIND}/{BIG_BLIND}",
             "seed": 42,
             "enable_suffering": True,
+            "same_persona": True,
         },
         "players": [],
         "highlights": [],
@@ -190,14 +149,14 @@ def main() -> None:
         pl = p.chips - STARTING_CHIPS
         avg_t = times.get(p.name, 0) / max(p.hands_played, 1)
 
-        medals = {0: "🥇", 1: "🥈", 2: "🥉"}
+        medals = {0: "\U0001f947", 1: "\U0001f948", 2: "\U0001f949"}
         medal = medals.get(i, f"#{i+1}")
 
         if p.chips > 0:
             pl_str = f"+${pl:,}" if pl >= 0 else f"-${abs(pl):,}"
             status = f"${p.chips:,} ({pl_str})"
         else:
-            status = "💀 ELIMINATED"
+            status = "\U0001f480 ELIMINATED"
 
         console.print(f"  {medal} [bold]{p.name}[/bold] [{local}] ({model_short})")
         console.print(f"     Chips: {status}")
@@ -206,7 +165,7 @@ def main() -> None:
             f"{p.total_raises}R | {avg_t:.1f}s avg"
         )
 
-        player_data = {
+        results["players"].append({
             "rank": i + 1,
             "name": p.name,
             "model": model,
@@ -221,15 +180,14 @@ def main() -> None:
             "checks": p.total_checks,
             "avg_decision_time": round(avg_t, 2),
             "eliminated": p.chips <= 0,
-        }
-        results["players"].append(player_data)
+        })
 
         if p.chips > STARTING_CHIPS * 2:
             results["highlights"].append(
-                f"🔥 {p.name} doubled up! Final: ${p.chips:,}"
+                f"{p.name} doubled up! Final: ${p.chips:,}"
             )
         if p.chips <= 0:
-            results["highlights"].append(f"💀 {p.name} ({model_short}) eliminated")
+            results["highlights"].append(f"{p.name} ({model_short}) eliminated")
 
     for h in results["highlights"]:
         console.print(f"  {h}")
