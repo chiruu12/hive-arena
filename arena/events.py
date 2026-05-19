@@ -1,6 +1,6 @@
 """Arena event catalog — 10 economic scenarios with forced choices."""
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 
 @dataclass
@@ -73,8 +73,8 @@ def _skill_workshop(choice: int, luck: float) -> Outcome:
         return Outcome(1, 0, 0, "Skipped it. Time is money... or is money time?")
     if choice == 2:
         return Outcome(2, -50, 0.1, "Learned something useful. Worth the cost.")
-    return Outcome(3, -200, 0.05 if luck > 0.5 else -0.05,
-                   "Expensive bootcamp. " + ("Great connections!" if luck > 0.5 else "Disappointing content."))
+    desc = "Great connections!" if luck > 0.5 else "Disappointing content."
+    return Outcome(3, -200, 0.05 if luck > 0.5 else -0.05, f"Expensive bootcamp. {desc}")
 
 
 def _friend_needs_money(choice: int, luck: float) -> Outcome:

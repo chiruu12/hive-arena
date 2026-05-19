@@ -5,7 +5,6 @@ from __future__ import annotations
 import random
 from dataclasses import dataclass, field
 from enum import Enum, auto
-from typing import Any
 
 from poker.cards import Card, HandResult, describe_hand, evaluate_hand, make_deck
 
@@ -77,6 +76,7 @@ class ShowdownResult:
     hand_description: str
     hole_cards: list[Card]
     winnings: int
+    contested_win: bool = False
 
 
 @dataclass
@@ -98,11 +98,13 @@ class PokerEngine:
         starting_chips: int = 1000,
         small_blind: int = 10,
         big_blind: int = 20,
+        ante: int = 0,
         seed: int | None = None,
     ):
         self._rng = random.Random(seed)
         self._small_blind = small_blind
         self._big_blind = big_blind
+        self._ante = ante
         self._starting_chips = starting_chips
 
         self.players = [PlayerState(name=n, chips=starting_chips) for n in player_names]
@@ -119,6 +121,8 @@ class PokerEngine:
         self._action_order: list[int] = []
         self._action_pos = 0
         self.showed_cards: dict[str, list[Card]] = {}
+        self._raises_this_round = 0
+        self._max_raises_per_round = 4
 
     def new_hand(self) -> None:
         """Shuffle, deal, post blinds, start pre-flop."""
@@ -148,6 +152,16 @@ class PokerEngine:
             p.showed_cards = False
             if not p.folded:
                 p.hands_played += 1
+
+        if self._ante > 0:
+            for p in self.players:
+                if not p.folded:
+                    ante_amount = min(self._ante, p.chips)
+                    p.chips -= ante_amount
+                    p.bet_this_hand += ante_amount
+                    self.pot += ante_amount
+                    if p.chips == 0:
+                        p.all_in = True
 
         for p in self.players:
             if not p.folded:
@@ -241,11 +255,20 @@ class PokerEngine:
             call_amount = min(cost_to_call, p.chips)
             actions.append(Action(ActionType.CALL, call_amount))
 
-        if p.chips > cost_to_call:
+        can_raise = (
+            p.chips > cost_to_call
+            and self._raises_this_round < self._max_raises_per_round
+        )
+        if can_raise:
             min_raise_to = self.current_bet + self.min_raise
             min_raise_cost = min_raise_to - p.bet_this_round
             if min_raise_cost <= p.chips:
                 actions.append(Action(ActionType.RAISE, min_raise_to))
+
+                half_pot = self.current_bet + (self.pot + cost_to_call) // 2
+                half_pot_cost = half_pot - p.bet_this_round
+                if half_pot_cost <= p.chips and half_pot > min_raise_to:
+                    actions.append(Action(ActionType.RAISE, half_pot))
 
                 pot_raise_to = self.current_bet + self.pot + cost_to_call
                 pot_raise_cost = pot_raise_to - p.bet_this_round
@@ -256,7 +279,6 @@ class PokerEngine:
         if all_in_amount not in [a.amount for a in actions if a.type == ActionType.RAISE]:
             actions.append(Action(ActionType.ALL_IN, all_in_amount))
 
-        actions.append(Action(ActionType.SHOW_CARDS))
         return actions
 
     def apply_action(self, player_name: str, action: Action) -> ActionResult:
@@ -298,6 +320,7 @@ class PokerEngine:
             self.pot += cost
             self.current_bet = p.bet_this_round
             self.last_raiser = player_name
+            self._raises_this_round += 1
             for other in self.players:
                 if other.name != player_name and not other.folded and not other.all_in:
                     other.has_acted = False
@@ -391,6 +414,7 @@ class PokerEngine:
         self.current_bet = 0
         self.min_raise = self._big_blind
         self.last_raiser = None
+        self._raises_this_round = 0
         for p in self.players:
             p.bet_this_round = 0
             if not p.folded and not p.all_in:
@@ -412,6 +436,8 @@ class PokerEngine:
             if not eligible:
                 continue
 
+            contested = len(eligible) > 1
+
             hands = []
             for p in eligible:
                 all_cards = p.hole_cards + self.community
@@ -431,13 +457,15 @@ class PokerEngine:
             for i, (p, h) in enumerate(pot_winners):
                 winnings = share + (1 if i < remainder else 0)
                 p.chips += winnings
-                p.hands_won += 1
-                if p.name not in winners:
+                if contested and p.name not in winners:
+                    p.hands_won += 1
                     winners.append(p.name)
 
                 existing = next((r for r in results if r.player_name == p.name), None)
                 if existing:
                     existing.winnings += winnings
+                    if contested:
+                        existing.contested_win = True
                 else:
                     results.append(ShowdownResult(
                         player_name=p.name,
@@ -445,6 +473,7 @@ class PokerEngine:
                         hand_description=describe_hand(h),
                         hole_cards=list(p.hole_cards),
                         winnings=winnings,
+                        contested_win=contested,
                     ))
 
         for p in active:

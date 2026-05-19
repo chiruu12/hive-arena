@@ -1,6 +1,5 @@
 """Card deck, hand evaluation, and poker mechanics."""
 
-import random
 from dataclasses import dataclass
 from enum import IntEnum
 

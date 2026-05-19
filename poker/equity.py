@@ -8,7 +8,6 @@ from dataclasses import dataclass, field
 from poker.cards import (
     Card,
     HandRank,
-    HandResult,
     describe_hand,
     evaluate_hand,
     make_deck,

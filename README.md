@@ -39,6 +39,23 @@ python -m lifesim.cli --model claude-haiku-4-5 --rounds 30
 python -m lifesim.cli --model lmstudio:qwen/qwen3-1.7b --seed 42
 ```
 
+### Poker - LLM Texas Hold'em Tournament
+
+Full poker engine with hand evaluation, equity calculator, and Rich TUI.
+
+```bash
+# Local models (LM Studio)
+python -m poker.cli --preset local --hands 25
+
+# With dramatic personas (gambler, philosopher, coder)
+python -m poker.cli --preset local --dramatic
+
+# Cloud models
+python -m poker.cli --preset cloud --hands 25
+```
+
+See [tournaments/results/](tournaments/results/) for data from 5 complete runs.
+
 ## Setup
 
 ```bash

@@ -3,11 +3,23 @@
 import argparse
 import asyncio
 import json
+import sys
 from datetime import UTC, datetime
 from pathlib import Path
 
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+_SRC_DIR = _PROJECT_ROOT / "src"
+if str(_SRC_DIR) not in sys.path:
+    sys.path.insert(0, str(_SRC_DIR))
+
 from poker.display import console
 from poker.table import TableConfig, run_tournament
+
+DRAMATIC_PROFILES = {
+    "Liquid": "gambler",
+    "Qwen": "coder",
+    "Phi": "philosopher",
+}
 
 PRESETS = {
     "local": [
@@ -39,6 +51,7 @@ def main() -> None:
     parser.add_argument("--blinds", type=str, default="10/20", help="Blinds (e.g. 10/20)")
     parser.add_argument("--seed", type=int, default=None, help="Random seed")
     parser.add_argument("--no-equity", action="store_true", help="Hide equity from models")
+    parser.add_argument("--dramatic", action="store_true", help="Assign personality profiles")
     parser.add_argument("--output", type=str, default="", help="Output JSON path")
     args = parser.parse_args()
 
@@ -73,7 +86,23 @@ def main() -> None:
         show_equity=not args.no_equity,
     )
 
-    engine, times = asyncio.run(run_tournament(players, config))
+    personas = None
+    if args.dramatic:
+        from hive.agents.profile import AgentProfile
+        from hive.runtime.persona import Persona
+
+        profiles_dir = Path(__file__).resolve().parent.parent.parent / "profiles"
+        personas = {}
+        for name, _, _ in players:
+            profile_name = DRAMATIC_PROFILES.get(name)
+            if profile_name and (profiles_dir / f"{profile_name}.yaml").exists():
+                profile = AgentProfile.from_yaml(profiles_dir / f"{profile_name}.yaml")
+                p = Persona.from_profile(profile)
+                p.name = name
+                personas[name] = p
+                console.print(f"  [dim]{name} → {profile_name} persona[/dim]")
+
+    engine, times = asyncio.run(run_tournament(players, config, personas=personas))
 
     output_data = {
         "tournament": {

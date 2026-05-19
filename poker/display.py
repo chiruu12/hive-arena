@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
@@ -13,7 +15,6 @@ from poker.engine import (
     HandSummary,
     Phase,
     PlayerState,
-    SidePot,
 )
 
 console = Console()
@@ -37,7 +38,7 @@ def tournament_header(
     starting_chips: int,
     blinds: tuple[int, int],
 ) -> None:
-    lines = [f"[bold]LLM Poker Tournament[/bold]\n"]
+    lines = ["[bold]LLM Poker Tournament[/bold]\n"]
     for name, model in players:
         short = model.split("/")[-1][:20]
         lines.append(f"  {name} ({short})")
@@ -94,12 +95,26 @@ def show_cards_reveal(name: str, cards: list[Card]) -> None:
 
 def showdown(summary: HandSummary) -> None:
     console.print(f"\n  [bold]Showdown![/bold] Community: [{_cards(summary.community)}]")
-    for r in summary.results:
-        marker = " [green bold]WINNER[/green bold]" if r.player_name in summary.winners else ""
+
+    if len(summary.pots) > 1:
+        for i, pot in enumerate(summary.pots):
+            label = "Main pot" if i == 0 else f"Side pot {i}"
+            console.print(f"    [dim]{label}: {pot.amount:,} ({', '.join(pot.eligible)})[/dim]")
+
+    ranked = sorted(summary.results, key=lambda r: (r.hand.rank, r.hand.tiebreaker), reverse=True)
+    for r in ranked:
+        if r.contested_win:
+            marker = " [green bold]WINNER[/green bold]"
+            winnings = f" [green](+{r.winnings:,})[/green]"
+        elif r.winnings > 0:
+            marker = ""
+            winnings = f" [dim](+{r.winnings:,} refund)[/dim]"
+        else:
+            marker = ""
+            winnings = ""
         console.print(
             f"    {r.player_name}: [{_cards(r.hole_cards)}] "
-            f"-> [bold]{r.hand_description}[/bold]{marker}"
-            + (f" (+{r.winnings})" if r.winnings > 0 else "")
+            f"-> [bold]{r.hand_description}[/bold]{marker}{winnings}"
         )
 
 
@@ -111,17 +126,32 @@ def fold_win(summary: HandSummary) -> None:
         )
 
 
-def chip_counts(players: list[PlayerState], starting: int) -> None:
+def chip_counts(
+    players: list[PlayerState],
+    starting: int,
+    suffering_states: dict[str, Any] | None = None,
+) -> None:
     parts = []
     for p in players:
+        tilt = ""
+        if suffering_states and p.name in suffering_states:
+            s = suffering_states[p.name]
+            load = s.cumulative_load
+            if s.in_crisis:
+                tilt = " [bold red]\U0001f480 CRISIS[/bold red]"
+            elif load >= 0.6:
+                tilt = " [red]\U0001f525 TILT[/red]"
+            elif load >= 0.3:
+                tilt = " [yellow]stressed[/yellow]"
+
         if p.chips <= 0:
             parts.append(f"[dim]{p.name}:OUT[/dim]")
         elif p.chips > starting:
-            parts.append(f"[green]{p.name}:{p.chips}[/green]")
+            parts.append(f"[green]{p.name}:{p.chips}[/green]{tilt}")
         elif p.chips < starting // 3:
-            parts.append(f"[red]{p.name}:{p.chips}[/red]")
+            parts.append(f"[red]{p.name}:{p.chips}[/red]{tilt}")
         else:
-            parts.append(f"{p.name}:{p.chips}")
+            parts.append(f"{p.name}:{p.chips}{tilt}")
     console.print(f"  Chips: {'  '.join(parts)}")
 
 
@@ -176,3 +206,93 @@ def tournament_results(
         )
 
     console.print(table)
+
+
+def scoreboard(
+    players: list[PlayerState],
+    starting: int,
+    hand_num: int,
+    total_hands: int,
+    models: dict[str, str],
+    times: dict[str, float],
+    suffering_states: dict[str, Any] | None = None,
+) -> None:
+    """Print a live scoreboard after each hand."""
+    ranked = sorted(players, key=lambda p: p.chips, reverse=True)
+
+    table = Table(
+        title=f"Scoreboard — Hand {hand_num}/{total_hands}",
+        show_lines=False,
+        border_style="dim",
+        padding=(0, 1),
+    )
+    table.add_column("#", style="bold", width=3)
+    table.add_column("Player", style="cyan", width=12)
+    table.add_column("Chips", justify="right", width=12)
+    table.add_column("P/L", justify="right", width=10)
+    table.add_column("Bar", width=20)
+    table.add_column("W/F/R", justify="center", width=8)
+    table.add_column("Status", width=12)
+
+    max_chips = max((p.chips for p in ranked), default=starting)
+    bar_width = 16
+
+    for i, p in enumerate(ranked):
+        pl = p.chips - starting
+        if p.chips <= 0:
+            pl_str = f"[red]-${starting:,}[/red]"
+            bar = "[dim]" + "░" * bar_width + "[/dim]"
+            status = "[bold red]OUT[/bold red]"
+        else:
+            if pl >= 0:
+                pl_str = f"[green]+${pl:,}[/green]"
+            else:
+                pl_str = f"[red]-${abs(pl):,}[/red]"
+            filled = int((p.chips / max(max_chips, 1)) * bar_width)
+            if p.chips > starting:
+                bar = "[green]" + "█" * filled + "[/green]" + "░" * (bar_width - filled)
+            elif p.chips < starting // 3:
+                bar = "[red]" + "█" * filled + "[/red]" + "░" * (bar_width - filled)
+            else:
+                bar = "█" * filled + "░" * (bar_width - filled)
+
+            status = ""
+            if suffering_states and p.name in suffering_states:
+                s = suffering_states[p.name]
+                load = s.cumulative_load
+                if s.in_crisis:
+                    status = "[bold red]💀 CRISIS[/bold red]"
+                elif load >= 0.6:
+                    status = "[red]🔥 TILT[/red]"
+                elif load >= 0.3:
+                    status = "[yellow]😰[/yellow]"
+
+        wfr = f"{p.hands_won}/{p.total_folds}/{p.total_raises}"
+
+        table.add_row(
+            str(i + 1),
+            p.name,
+            f"${p.chips:,}" if p.chips > 0 else "—",
+            pl_str,
+            bar,
+            wfr,
+            status,
+        )
+
+    console.print(table)
+
+
+def tilt_alert(name: str, old_risk: float, new_risk: float) -> None:
+    if new_risk > old_risk + 0.15:
+        console.print(
+            f"    [bold yellow]!! {name}'s risk tolerance spiked: "
+            f"{old_risk:.0%} → {new_risk:.0%}[/bold yellow]"
+        )
+
+
+def journal_entry(name: str, text: str) -> None:
+    console.print(f"    [blue]\U0001f4dd {name}: {text[:80]}[/blue]")
+
+
+def table_talk(name: str, message: str) -> None:
+    console.print(f"    [magenta]\U0001f4ac {name}:[/magenta] \"{message}\"")
