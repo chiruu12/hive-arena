@@ -1,6 +1,6 @@
 # LLM Poker Tournament Results
 
-We ran **5 million-dollar poker tournaments** with 6 AI models playing Texas Hold'em against each other. Same rules, same persona, same starting chips — the model is the only variable.
+5 million-dollar poker tournaments. 6 AI models. Same rules, same persona, same starting chips. The model is the only variable.
 
 ## The Players
 
@@ -10,40 +10,43 @@ We ran **5 million-dollar poker tournaments** with 6 AI models playing Texas Hol
 | Qwen | qwen/qwen3-1.7b | Local (LM Studio) | 1.7B |
 | GPT-OSS | gpt-oss-120b | Fireworks | 120B |
 | MiniMax | minimax-m2p7 | Fireworks | 230B |
-| Haiku | claude-haiku-4-5 | Anthropic | — |
+| Haiku | claude-haiku-4-5 | Anthropic | - |
 | Kimi | kimi-k2p6 | Fireworks | ~1T |
 
 ## Results
 
-| Run | Winner | Size | Type | Final Chips |
-|-----|--------|------|------|-------------|
-| 1 | **Qwen** | 1.7B | LOCAL | $6,000,000 |
-| 2 | **MiniMax** | 230B | CLOUD | $5,971,000 |
-| 3 | **Liquid** | 1.2B | LOCAL | $5,985,000 |
-| 4 | **Kimi** | ~1T | CLOUD | $5,952,000 |
-| 5 | **Liquid** | 1.2B | LOCAL | $5,964,000 |
+| Run | Winner | Size | Type |
+|-----|--------|------|------|
+| 1 | **Qwen** | 1.7B | LOCAL |
+| 2 | **MiniMax** | 230B | CLOUD |
+| 3 | **Liquid** | 1.2B | LOCAL |
+| 4 | **Kimi** | ~1T | CLOUD |
+| 5 | **Liquid** | 1.2B | LOCAL |
 
-**4 different winners across 5 runs.** The 1.2B local model won twice.
+4 different winners across 5 runs. The 1.2B local model won twice.
 
-## Try It Yourself
+## Reproduce
 
 ```bash
 git clone https://github.com/chiruu12/hive-arena
 cd hive-arena
 pip install hive-agent rich pyyaml
 
-# Run the tournament
+# Run the full 6-player tournament
 python tournaments/million_dollar.py
+
+# Or run a quick custom game
+python -m poker.cli --preset local --hands 25 --dramatic
 ```
 
-You'll need:
-- [LM Studio](https://lmstudio.ai/) running on port 1234 with Liquid, Qwen loaded
+You need:
+- [LM Studio](https://lmstudio.ai/) on port 1234 with Liquid and Qwen loaded
 - `ANTHROPIC_API_KEY` in `.env` for Haiku
 - `FIREWORKS_API_KEY` in `.env` for MiniMax, Kimi, GPT-OSS
 
-Edit `tournaments/million_dollar.py` to swap models, change blinds, or adjust the number of hands.
+Edit `tournaments/million_dollar.py` to swap models, change blinds, or adjust hands.
 
-## Tournament Config
+## Config
 
 - **Starting chips**: $1,000,000
 - **Blinds**: 5,000 / 10,000
@@ -52,8 +55,8 @@ Edit `tournaments/million_dollar.py` to swap models, change blinds, or adjust th
 - **Equity**: Monte Carlo (500 simulations shown to each player)
 - **Persona**: Identical for all players
 
-## Known Issue
+## Want to add your model?
 
-Chip totals in Runs 2-5 are slightly below $6M (by 15K-48K). This is a minor ante accounting bug when players go all-in for less than the ante amount. It doesn't affect relative standings or who wins.
+Open an issue with your model name and optional persona config. We will add it to the next run.
 
 Built with [Hive](https://github.com/chiruu12/Hive) and [pokertable](https://pypi.org/project/pokertable/).
