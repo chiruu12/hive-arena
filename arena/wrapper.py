@@ -40,6 +40,12 @@ class ArenaGame(HiveGame):
         a2a_store: Any | None = None,
         memory_dir: Path | None = None,
     ) -> None:
+        """Configure the arena game.
+
+        Note: enable_suffering, notepad, a2a_store, and memory_dir are
+        accepted for HiveGame interface compatibility but not yet
+        wired into the arena game logic.
+        """
         self._player_configs = player_configs
         self._seed = seed
         self._personas = personas

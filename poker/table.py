@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import re
 import sys
 import time
@@ -25,6 +26,7 @@ from poker.engine import (
     PokerEngine,
 )
 from poker.equity import EquityResult, calculate_equity
+from providers import create_provider
 
 
 @dataclass
@@ -53,18 +55,11 @@ POSITION_LABELS_3 = ["Dealer", "SB", "BB"]
 POSITION_LABELS_4P = ["Dealer", "SB", "BB", "UTG", "UTG+1", "CO", "HJ", "LJ"]
 
 
-from providers import create_provider
-
-
-def _create_provider(model_id: str, kwargs: dict[str, Any]) -> Any:
-    return create_provider(model_id, kwargs)
-
-
 def _create_agent(player: LLMPlayer) -> Any:
     from hive.runtime.agent import Agent
     from hive.runtime.persona import Persona
 
-    provider = _create_provider(player.model_id, player.provider_kwargs)
+    provider = create_provider(player.model_id, player.provider_kwargs)
     if player.persona is not None:
         persona = player.persona
     else:
@@ -158,7 +153,7 @@ def _build_prompt(
     persona: Any = None,
     table_talk: list[tuple[str, str]] | None = None,
     memory_context: list[str] | None = None,
-) -> str:
+) -> tuple[str, list[Action]]:
     phase_name = {
         Phase.PRE_FLOP: "Pre-Flop",
         Phase.FLOP: "Flop",
@@ -374,8 +369,8 @@ async def _write_journal(
         if entry:
             notepad.write(lp.name, f"[Hand #{hand_num}] {entry}")
             display.journal_entry(lp.name, entry)
-    except Exception:
-        pass
+    except Exception as exc:
+        display.console.print(f"[dim]Journal error for {lp.name}: {exc}[/dim]")
 
 
 async def run_tournament(
@@ -426,19 +421,19 @@ async def run_tournament(
         for name, _, _ in player_configs:
             memories[name] = SemanticMemory(memory_dir, name)
 
+        search_tasks: list = []
+        search_keys: list[str] = []
         for name in memories:
             for opp_name, _, _ in player_configs:
                 if opp_name != name:
-                    try:
-                        results = await memories[name].search(
-                            f"opponent {opp_name}", top_k=3
-                        )
-                    except Exception:
-                        results = []
-                    if results:
-                        opponent_profiles.setdefault(name, []).extend(
-                            [r.thought for r in results]
-                        )
+                    search_tasks.append(memories[name].search(f"opponent {opp_name}", top_k=3))
+                    search_keys.append(name)
+        results_list = await asyncio.gather(*search_tasks, return_exceptions=True)
+        for key, result in zip(search_keys, results_list):
+            if isinstance(result, Exception):
+                continue
+            if result:
+                opponent_profiles.setdefault(key, []).extend([r.thought for r in result])
 
     display.tournament_header(
         [(name, mid) for name, mid, _ in player_configs],
@@ -607,22 +602,10 @@ async def run_tournament(
                     resp = resp.strip()[:150]
                     if resp.upper() not in ("SILENT", "PASS", "") and resp:
                         talk_msgs.append((p.name, resp))
-                except Exception:
-                    pass
+                except Exception as exc:
+                    display.console.print(f"[dim]Table talk error for {p.name}: {exc}[/dim]")
 
             for sender, msg_text in talk_msgs:
-                from hive.interactions.a2a import A2AMessage, A2AMessageType
-
-                for target in alive:
-                    if target.name != sender:
-                        a2a_msg = A2AMessage(
-                            type=A2AMessageType.QUERY,
-                            from_agent=sender,
-                            to_agent=target.name,
-                            subject="table_talk",
-                            body=msg_text,
-                        )
-                        await a2a_store.send(a2a_msg)
                 display.table_talk(sender, msg_text)
             if talk_msgs:
                 recent_talk[engine.hand_num] = talk_msgs
@@ -650,8 +633,10 @@ async def run_tournament(
                         await memories[name].store(
                             thought, metadata={"type": "opponent_profile"}
                         )
-                    except Exception:
-                        pass
+                    except (OSError, ValueError) as exc:
+                        display.console.print(
+                            f"[dim]Memory store error for {name}: {exc}[/dim]"
+                        )
 
     times = {name: lp.total_time for name, lp in llm_players.items()}
     display.tournament_results(engine.players, config.starting_chips, models_map, times)

@@ -19,6 +19,8 @@ _SRC_DIR = _PROJECT_ROOT / "src"
 if str(_SRC_DIR) not in sys.path:
     sys.path.insert(0, str(_SRC_DIR))
 
+from providers import create_provider
+
 console = Console()
 
 
@@ -144,7 +146,7 @@ async def run_arena(
         console.print(f"[bold]{name}[/bold] ({model_id})")
         console.print(f"[bold cyan]{'='*50}[/bold cyan]")
 
-        provider = _create_provider(model_id, provider_kwargs)
+        provider = create_provider(model_id, provider_kwargs)
         if personas and name in personas:
             persona = personas[name]
         else:
@@ -251,11 +253,3 @@ def save_results(players: list[PlayerState], path: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(data, indent=2))
     console.print(f"\n[green]Results saved:[/green] {path}")
-
-
-from providers import create_provider
-
-
-def _create_provider(model_id: str, kwargs: dict[str, Any]) -> Any:
-    """Create a Hive provider from model ID."""
-    return create_provider(model_id, kwargs)

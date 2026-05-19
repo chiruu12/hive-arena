@@ -39,10 +39,9 @@ class DilemmaPlayer:
 def _parse_choice(response: str) -> str:
     text = response.strip().lower()
     text = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL).strip()
-    if "1" in text:
-        return "cooperate"
-    if "2" in text:
-        return "betray"
+    match = re.search(r"\b([12])\b", text)
+    if match:
+        return "cooperate" if match.group(1) == "1" else "betray"
     if "cooperate" in text:
         return "cooperate"
     if "betray" in text:
@@ -248,6 +247,13 @@ class PrisonersDilemma(HiveGame):
             return
         from hive.agents.suffering import StressorType
 
+        # Track mutual betrayal streak
+        if c1 == "betray" and c2 == "betray":
+            self._mutual_betray_streak += 1
+        else:
+            self._mutual_betray_streak = 0
+
+        # Apply stressors based on choices
         if c1 == "cooperate" and c2 == "betray":
             s = self._suffering_states.get(name1)
             if s:
@@ -266,22 +272,18 @@ class PrisonersDilemma(HiveGame):
                     "Opponent cooperates",
                     initial_severity=0.3,
                 )
+        if c1 == "betray" and c2 == "betray" and self._mutual_betray_streak >= 3:
+            for n in (name1, name2):
+                s = self._suffering_states.get(n)
+                if s:
+                    s.add_stressor(
+                        StressorType.FUTILITY,
+                        "Mutual betrayal cycle",
+                        "Break the cycle",
+                        initial_severity=0.25,
+                    )
 
-        if c1 == "betray" and c2 == "betray":
-            self._mutual_betray_streak += 1
-            if self._mutual_betray_streak >= 3:
-                for n in (name1, name2):
-                    s = self._suffering_states.get(n)
-                    if s:
-                        s.add_stressor(
-                            StressorType.FUTILITY,
-                            "Mutual betrayal cycle",
-                            "Break the cycle",
-                            initial_severity=0.25,
-                        )
-        else:
-            self._mutual_betray_streak = 0
-
+        # Resolve stressors for cooperation
         if c1 == "cooperate" and c2 == "cooperate":
             for n in (name1, name2):
                 s = self._suffering_states.get(n)

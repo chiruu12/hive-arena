@@ -2,16 +2,6 @@
 
 from __future__ import annotations
 
-import sys
-from pathlib import Path
-
-_PROJECT_ROOT = Path(__file__).resolve().parent.parent
-_SRC_DIR = _PROJECT_ROOT.parent / "src"
-if str(_SRC_DIR) not in sys.path:
-    sys.path.insert(0, str(_SRC_DIR))
-if str(_PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(_PROJECT_ROOT))
-
 from hive.agents.suffering import StressorType, SufferingState
 
 from auction.game import (

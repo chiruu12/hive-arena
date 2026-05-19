@@ -55,7 +55,6 @@ class HiveGame(ABC):
         notepad: Any | None = None,
         a2a_store: Any | None = None,
         memory_dir: Path | None = None,
-        **kwargs: Any,
     ) -> None: ...
 
     @abstractmethod
