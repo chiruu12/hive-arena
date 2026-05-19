@@ -1,10 +1,11 @@
 [project]
 name = "hive-arena"
-version = "0.1.0"
+version = "0.2.0"
 description = "Head-to-head LLM arena and life simulation — built on Hive"
 requires-python = ">=3.11"
 dependencies = [
     "hive-agent>=0.2.0",
+    "pokertable @ git+https://github.com/chiruu12/pokertable.git@v1.0.0",
     "rich>=13.0",
     "pyyaml>=6.0",
 ]
@@ -23,6 +24,9 @@ dev = [
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[tool.hatch.metadata]
+allow-direct-references = true
 
 [tool.hatch.build.targets.wheel]
 packages = ["arena", "auction", "dilemma", "lifesim", "poker", "tournaments"]
