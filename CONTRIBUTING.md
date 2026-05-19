@@ -12,10 +12,12 @@ git checkout -b docs/update
 
 ## Setup
 
+Requires **Python 3.11+** (see `requires-python` in pyproject.toml).
+
 ```bash
 git clone https://github.com/chiruu12/hive-arena.git
 cd hive-arena
-pip install hive-agent rich pyyaml
+pip install -e ".[dev]"
 ```
 
 ## Project Structure
