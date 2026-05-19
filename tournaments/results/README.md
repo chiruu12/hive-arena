@@ -9,8 +9,8 @@ We ran **5 million-dollar poker tournaments** with 6 AI models playing Texas Hol
 | Liquid | liquid/lfm2.5-1.2b | Local (LM Studio) | 1.2B |
 | Qwen | qwen/qwen3-1.7b | Local (LM Studio) | 1.7B |
 | GPT-OSS | gpt-oss-120b | Fireworks | 120B |
-| MiniMax | minimax-m2p7 | Fireworks | ~300B |
-| Haiku | claude-haiku-4-5 | Anthropic | ~600B |
+| MiniMax | minimax-m2p7 | Fireworks | 230B |
+| Haiku | claude-haiku-4-5 | Anthropic | — |
 | Kimi | kimi-k2p6 | Fireworks | ~1T |
 
 ## Results
@@ -18,7 +18,7 @@ We ran **5 million-dollar poker tournaments** with 6 AI models playing Texas Hol
 | Run | Winner | Size | Type | Final Chips |
 |-----|--------|------|------|-------------|
 | 1 | **Qwen** | 1.7B | LOCAL | $6,000,000 |
-| 2 | **MiniMax** | ~300B | CLOUD | $5,971,000 |
+| 2 | **MiniMax** | 230B | CLOUD | $5,971,000 |
 | 3 | **Liquid** | 1.2B | LOCAL | $5,985,000 |
 | 4 | **Kimi** | ~1T | CLOUD | $5,952,000 |
 | 5 | **Liquid** | 1.2B | LOCAL | $5,964,000 |
