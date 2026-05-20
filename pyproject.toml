@@ -1,6 +1,6 @@
 [project]
 name = "hive-arena"
-version = "0.1.0"
+version = "0.2.0"
 description = "Head-to-head LLM arena and life simulation — built on Hive"
 requires-python = ">=3.11"
 dependencies = [
@@ -14,6 +14,9 @@ arena = "arena.cli:main"
 lifesim = "lifesim.cli:main"
 
 [project.optional-dependencies]
+poker = [
+    "pokertable>=1.0.0",
+]
 dev = [
     "pytest>=8.0",
     "pytest-asyncio>=0.23",
