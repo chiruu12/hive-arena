@@ -283,7 +283,6 @@ version = "0.2.0"
 source = { editable = "." }
 dependencies = [
     { name = "hive-agent" },
-    { name = "pokertable" },
     { name = "pyyaml" },
     { name = "rich" },
 ]
@@ -294,18 +293,21 @@ dev = [
     { name = "pytest-asyncio" },
     { name = "ruff" },
 ]
+poker = [
+    { name = "pokertable" },
+]
 
 [package.metadata]
 requires-dist = [
     { name = "hive-agent", specifier = ">=0.2.0" },
-    { name = "pokertable", git = "https://github.com/chiruu12/pokertable.git?rev=v1.0.0" },
+    { name = "pokertable", marker = "extra == 'poker'", specifier = ">=1.0.0" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0" },
     { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=0.23" },
     { name = "pyyaml", specifier = ">=6.0" },
     { name = "rich", specifier = ">=13.0" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.5" },
 ]
-provides-extras = ["dev"]
+provides-extras = ["poker", "dev"]
 
 [[package]]
 name = "httpcore"
@@ -565,10 +567,14 @@ wheels = [
 [[package]]
 name = "pokertable"
 version = "1.0.0"
-source = { git = "https://github.com/chiruu12/pokertable.git?rev=v1.0.0#e2e33b38682dfe596d6039c8a11c6142b80c0afd" }
+source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "rich" },
     { name = "typer" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/fb/5f/59ba2f71e0b629d344d2fc456f5828eeee98c98efeb6bd1240dea484c449/pokertable-1.0.0.tar.gz", hash = "sha256:22fc65bfd75a26a2dbba6fad99fa227a1c9118d3a208697ba6fe4a52ff9046e0", size = 85890, upload-time = "2026-05-19T21:28:04.536Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/08/d8/cecbd02d7d8fe3a0bf4a16d82975657b6c5ea388e8848bf7feb33c088e83/pokertable-1.0.0-py3-none-any.whl", hash = "sha256:b16f55ac9410f727734ac8325c9d95a59fdf338da7932016ce738b2d9b285039", size = 54648, upload-time = "2026-05-19T21:28:02.752Z" },
 ]
 
 [[package]]
