@@ -33,7 +33,10 @@ if env_path.exists():
     for line in env_path.read_text().splitlines():
         if "=" in line and not line.startswith("#"):
             k, v = line.split("=", 1)
-            os.environ.setdefault(k.strip(), v.strip())
+            v = v.strip()
+            if len(v) >= 2 and v[0] == v[-1] and v[0] in ('"', "'"):
+                v = v[1:-1]
+            os.environ.setdefault(k.strip(), v)
 
 import openai
 
@@ -112,6 +115,7 @@ class PokerPlayer:
             base_url=f"http://localhost:{port}/v1", api_key="not-needed"
         )
         self._last_thought: str | None = None
+        self.error_count: int = 0
 
     @property
     def name(self) -> str:
@@ -142,7 +146,13 @@ class PokerPlayer:
             raw = resp.choices[0].message.content or ""
             self._last_thought = raw.strip()[:120]
             return self._parse(raw, valid_actions)
-        except Exception:
+        except Exception as exc:
+            self.error_count += 1
+            if self.error_count <= 3:
+                print(f"  [!] {self._name} LLM error: {exc}")
+            elif self.error_count == 4:
+                print(f"  [!] {self._name} suppressing further errors...")
+            self._last_thought = None
             return _default_action(valid_actions)
 
     async def observe(self, event: dict[str, Any]) -> None:
@@ -245,7 +255,7 @@ def _run_single(
 # ── Aggregation ──────────────────────────────────────────────────────
 
 
-def _aggregate(all_runs: list[dict[str, Any]]) -> dict[str, Any]:
+def _aggregate(all_runs: list[dict[str, Any]], hands_per_run: int, base_seed: int) -> dict[str, Any]:
     names = list(PERSONAS.keys())
     summary: dict[str, dict[str, Any]] = {}
 
@@ -290,15 +300,15 @@ def _aggregate(all_runs: list[dict[str, Any]]) -> dict[str, Any]:
         r["rank"] = i + 1
 
     return {
-        "experiment": "persona-poker-100",
+        "experiment": f"persona-poker-{len(all_runs)}",
         "timestamp": datetime.now(UTC).strftime("%Y%m%d-%H%M%S"),
         "model": MODEL_ID,
         "total_runs": len(all_runs),
         "config": {
-            "hands_per_run": HANDS_PER_RUN,
+            "hands_per_run": hands_per_run,
             "starting_chips": STARTING_CHIPS,
             "blinds": "10/20 -> 25/50 -> 50/100",
-            "base_seed": BASE_SEED,
+            "base_seed": base_seed,
         },
         "rankings": rankings,
         "player_summary": summary,
@@ -314,7 +324,7 @@ def _print_leaderboard(all_runs: list[dict[str, Any]], after: int) -> None:
             pls.setdefault(p["name"], []).append(p["profit_loss"])
 
     board = sorted(
-        [(n, wins.get(n, 0), sum(pls.get(n, [])) / max(len(pls.get(n, [1])), 1))
+        [(n, wins.get(n, 0), sum(pls.get(n, [])) / max(len(pls.get(n, [])), 1))
          for n in PERSONAS],
         key=lambda x: (-x[1], -x[2]),
     )
@@ -379,7 +389,7 @@ def main() -> None:
         print("No runs completed.")
         return
 
-    agg = _aggregate(all_runs)
+    agg = _aggregate(all_runs, args.hands, args.seed)
     (out / "aggregate.json").write_text(json.dumps(agg, indent=2))
 
     total_s = time.time() - t_start
