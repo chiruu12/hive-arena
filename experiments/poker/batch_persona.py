@@ -384,6 +384,9 @@ def main() -> None:
 
     except KeyboardInterrupt:
         print(f"\nInterrupted after {len(all_runs)} runs. Saving partial results...")
+    except Exception as exc:
+        print(f"\nError on run {len(all_runs)}: {exc}")
+        print(f"Saving {len(all_runs)} completed runs...")
 
     if not all_runs:
         print("No runs completed.")
