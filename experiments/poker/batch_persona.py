@@ -49,7 +49,7 @@ from poker_engine.tui.minimal_display import MinimalDisplay
 NUM_RUNS = 100
 HANDS_PER_RUN = 25
 STARTING_CHIPS = 1000
-BASE_SEED = 42
+BASE_SEED = None  # None = random shuffle each run
 
 MODEL_ID = "liquid/lfm2.5-1.2b"
 LMSTUDIO_PORT = 1234
@@ -215,7 +215,7 @@ def _run_single(
         players=players,
         blind_schedule=BLIND_SCHEDULE,
         starting_chips=STARTING_CHIPS,
-        seed=seed,
+        seed=seed if seed is not None else None,
         max_hands=num_hands,
         hand_delay=0.0,
         table_talk=False,
@@ -341,7 +341,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Batch Poker Persona Experiment")
     parser.add_argument("--runs", type=int, default=NUM_RUNS)
     parser.add_argument("--hands", type=int, default=HANDS_PER_RUN)
-    parser.add_argument("--seed", type=int, default=BASE_SEED)
+    parser.add_argument("--seed", type=int, default=None, help="Base seed (default: random)")
     parser.add_argument("--port", type=int, default=LMSTUDIO_PORT)
     parser.add_argument("--output-dir", type=str, default="")
     parser.add_argument("--quiet", action="store_true", help="No per-hand output")
@@ -356,7 +356,8 @@ def main() -> None:
 
     print("Persona Poker Experiment")
     print(f"  Model:  {MODEL_ID}")
-    print(f"  Runs:   {args.runs}  |  Hands: {args.hands}  |  Seed: {args.seed}+i")
+    seed_desc = f"{args.seed}+i" if args.seed is not None else "random"
+    print(f"  Runs:   {args.runs}  |  Hands: {args.hands}  |  Seed: {seed_desc}")
     print(f"  Output: {out}")
     print(f"  Players: {', '.join(PERSONAS)}")
     print()
@@ -366,7 +367,7 @@ def main() -> None:
 
     try:
         for i in range(args.runs):
-            seed = args.seed + i
+            seed = (args.seed + i) if args.seed is not None else None
             result = _run_single(i, args.hands, seed, args.port, args.quiet)
             all_runs.append(result)
 
@@ -374,8 +375,9 @@ def main() -> None:
 
             w = result["winner"]
             wpl = next((p["profit_loss"] for p in result["players"] if p["name"] == w), 0)
+            seed_str = str(seed) if seed is not None else "rng"
             print(
-                f"[{i+1:03d}/{args.runs:03d}] seed={seed} | "
+                f"[{i+1:03d}/{args.runs:03d}] seed={seed_str} | "
                 f"Winner: {w} ({wpl:+d}) | "
                 f"{result['hands_played']} hands | {result['wall_clock_seconds']}s"
             )

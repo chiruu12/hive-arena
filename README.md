@@ -3,6 +3,51 @@
 Head-to-head LLM economic games and personality-driven life simulations.
 Built on [Hive](https://github.com/chiruu12/Hive).
 
+## Featured: Persona Poker Experiment
+
+**Same model. Same cards. 6 different personalities. 100 poker tournaments.**
+
+We gave the same 1.2B model (Liquid LFM-2.5, running locally via LM Studio) 6 classic poker personality prompts and ran 100 Texas Hold'em tournaments (25 hands each). The personality paragraph in the system prompt is the only variable.
+
+### Results
+
+| # | Persona | Style | Wins | Avg P/L | Eliminated | Avg Place |
+|---|---------|-------|------|---------|------------|-----------|
+| 1 | **Shark** | tight-aggressive | 45 | +$1,157 | 32% | 2.3 |
+| 2 | **Maniac** | loose-aggressive | 24 | +$395 | 50% | 3.0 |
+| 3 | **Gambler** | loose-passive | 21 | +$301 | 51% | 3.6 |
+| 4 | **Tilter** | emotional | 10 | -$435 | 80% | 5.1 |
+| 5 | **Grinder** | tight-passive | 0 | -$508 | 0% | 2.7 |
+| 6 | **Rock** | ultra-tight | 0 | -$909 | 63% | 4.3 |
+
+### Key Findings
+
+- **Personality prompts create real behavioral differences.** A paragraph of text created a 45:0 win differential on the same model.
+- **The Grinder Paradox:** 0 wins but 0 eliminations -- survived every tournament, always placed 2nd-3rd, but never accumulated enough to win.
+- **Selective aggression beats blind aggression.** Shark (45 wins) vs Maniac (24 wins). Both aggressive, but Shark picks its spots.
+- **Folding is more expensive than calling.** Rock (fold everything) was eliminated 63% of the time. Grinder (check/call everything) was eliminated 0%.
+- **Passive play never wins.** Neither Grinder nor Rock won a single tournament in 100 runs.
+
+### Reproduce It
+
+```bash
+cd experiments/poker
+python batch_persona.py --runs 100 --hands 25 --model lmstudio:liquid/lfm2.5-1.2b
+```
+
+Persona profiles are in [`experiments/poker/profiles/`](experiments/poker/profiles/).
+
+### Methodology
+
+- Model: Liquid LFM-2.5 (1.2B params), local via LM Studio
+- 100 tournaments, 25 hands each, random shuffles (no fixed seed)
+- Blind schedule: 10/20 → 25/50 → 50/100, starting stack $1,000
+- Each player receives: hole cards, community cards, pot size, chip counts, valid actions
+- The ONLY difference between players is the personality paragraph in the system prompt
+- Total runtime: ~12.7 hours on a 16GB Mac
+
+---
+
 ## What's Inside
 
 ### Arena — 10-Round Economic Game
